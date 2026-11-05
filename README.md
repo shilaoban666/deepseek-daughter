@@ -26,6 +26,8 @@ npm start
 
 运行测试：`npm test`。
 
+打包成单个 exe（Windows 便携版，不用安装，双击就能运行）：`npm run dist`，产物在 `apps/desktop/dist/`。第一次启动要先解压，需要十几秒。
+
 ## 界面原型（早期，已不再更新）
 
 直接用浏览器打开 [`prototype/index.html`](prototype/index.html)（单个文件，不用安装任何东西）。
