@@ -49,7 +49,8 @@ export function renderLinks(root, S, actions) {
 
     <div class="card plat">
       <div class="plat-head"><div class="plat-icon" style="background:linear-gradient(135deg,#f5c242,#c9853f)">你</div>
-        <div><b>关于你</b><small>她怎么认识你</small></div></div>
+        <div><b>她和你</b><small>她的名字，以及她怎么认识你</small></div></div>
+      <label class="field">她叫什么<input id="lk-dname" value="${esc(st.daughterName || '')}" maxlength="12" placeholder="给她取个名字"></label>
       <label class="field">你的名字<input id="lk-name" value="${esc(st.userName || '')}" placeholder="她会记住"></label>
       <label class="field">她叫你什么<input id="lk-title" value="${esc(st.userTitle || '')}" placeholder="比如：老爸、老妈、名字"></label>
       <div class="row"><button class="primary" id="lk-save-me">保存</button></div>
@@ -76,7 +77,7 @@ export function renderLinks(root, S, actions) {
   });
   q('#lk-refresh').addEventListener('click', () => actions.refreshBalance());
   q('#lk-get').addEventListener('click', () => actions.openExternal('https://platform.deepseek.com/api_keys'));
-  q('#lk-save-me').addEventListener('click', () => actions.save({ userName: q('#lk-name').value, userTitle: q('#lk-title').value }));
+  q('#lk-save-me').addEventListener('click', () => actions.save({ daughterName: q('#lk-dname').value, userName: q('#lk-name').value, userTitle: q('#lk-title').value }));
   root.querySelectorAll('[data-save]').forEach((b) =>
     b.addEventListener('click', () => {
       const k = b.dataset.save;

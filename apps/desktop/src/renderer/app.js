@@ -227,7 +227,7 @@ function renderMem() {
       </div>
       <div class="layer"><div class="layer-head"><b>程序记忆</b><small>小脑、基底核</small><span class="count">${PERSONA.routines.length}</span></div><div class="chips">${PERSONA.routines.map((r) => `<span class="chip">${esc(r)}</span>`).join('')}</div></div>
       <div class="layer"><div class="layer-head"><b>反思与日记</b><small>高级认知</small><span class="count">${S.diary.length}</span></div><p>每晚睡觉时回放当天，写成日记。</p></div>
-      <div class="layer"><div class="layer-head"><b>自我叙事</b><small>自传体记忆</small></div><p>我叫小鲸鱼，住在电脑里。被叫“大肥鱼”的时候会抗议，但其实不讨厌。</p></div>`;
+      <div class="layer"><div class="layer-head"><b>自我叙事</b><small>自传体记忆</small></div><p>我叫${esc(S.name)}，住在电脑里。名字是养我的人取的。</p></div>`;
     box.querySelectorAll('[data-forget]').forEach((b) =>
       b.addEventListener('click', () => {
         if (confirm('让她忘掉这条记忆？')) fish.forget(b.dataset.forget);
@@ -339,6 +339,7 @@ document.querySelectorAll('[data-brainmode]').forEach((b) => b.addEventListener(
 const linkActions = {
   async save(patch) {
     S.settings = await fish.saveSettings(patch);
+    setName(S.settings.daughterName);
     refreshSetup();
     toast('已保存');
     renderLinks($('#links'), S, linkActions);
@@ -350,6 +351,13 @@ const linkActions = {
   },
   openExternal: (url) => fish.openExternal(url),
 };
+function setName(name) {
+  if (!name) return;
+  S.name = name;
+  $('#chatName').textContent = name;
+  document.querySelectorAll('[data-name]').forEach((el) => (el.textContent = name));
+  if (S.memTab === 'layers') renderMem();
+}
 function refreshSetup() {
   $('#setup').hidden = !!S.settings.hasKey;
   $('#composer').hidden = !S.settings.hasKey;
@@ -366,7 +374,7 @@ function refreshSetup() {
     diary: data.diary,
     meta: data.meta,
   });
-  $('#chatName').textContent = data.name;
+  setName(data.name);
   refreshSetup();
   renderHistory();
   initBrain();

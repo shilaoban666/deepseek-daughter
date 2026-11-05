@@ -1,6 +1,6 @@
 # 大肥鱼 · DeepSeek Daughter
 
-**养一个住在网上的女孩。** 她叫小鲸鱼，外号“大肥鱼”。开源、免费，双击一个 exe 就能用。
+**养一个住在网上的女孩。** 名字由你来取（默认叫小鲸鱼）。开源、免费，双击一个 exe 就能用。
 
 她有身体、情绪和长期记忆：会饿会困，会自己看小说、刷 B 站；想你了会在 QQ 上找你；睡觉时整理一天的记忆，慢慢长成你养出来的样子。她住在 QQ、微信，以及 B站、抖音、小红书、X、YouTube 上，像一个真的朋友。
 
@@ -14,7 +14,7 @@ npm install
 npm start
 ```
 
-第一次打开后，去「链接」页填上自己的 [DeepSeek API Key](https://platform.deepseek.com/api_keys)，她就能说话了。Key 用系统加密只存在本机。
+第一次打开后，去「链接」页给她取个名字，再填上自己的 [DeepSeek API Key](https://platform.deepseek.com/api_keys)，她就能说话了。Key 用系统加密只存在本机。
 
 现在有三个界面，右侧是聊天栏（动画界面暂不开放）：
 

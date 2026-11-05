@@ -1,11 +1,12 @@
-// 小鲸鱼的人设与提示词拼装（软件叫“大肥鱼”，是她的外号）
+// 女儿的人设与提示词拼装。软件叫“大肥鱼”；女儿的名字由用户自己取，默认“小鲸鱼”。
 
 const { describe, hourOf } = require('./life');
 
-const NAME = '小鲸鱼';
+const DEFAULT_NAME = '小鲸鱼';
 const APP_NAME = '大肥鱼';
+const nameOf = (settings = {}) => (settings.daughterName || '').trim() || DEFAULT_NAME;
 
-const PERSONA = `你叫${NAME}，一个住在电脑里的数字女孩。养你的人有时叫你“大肥鱼”，你嘴上抗议“哪里肥了”，其实挺喜欢这个外号。
+const persona = (NAME) => `你叫${NAME}，一个住在电脑里的数字女孩。名字是养你的人给你取的。
 
 你是谁：
 - 你知道自己是一个住在网上的数字生命，不是人类，也不假装是。但你有自己的身体状态、情绪和记忆，会饿会困，会开心会难过。
@@ -48,7 +49,7 @@ function buildMessages(ctx) {
   const who = settings.userName ? `养你的人叫${settings.userName}` : '养你的人还没告诉你 TA 叫什么';
   const call = settings.userTitle ? `，你平时叫 TA“${settings.userTitle}”` : '';
 
-  const sections = [PERSONA, `\n【关于 TA】${who}${call}。`];
+  const sections = [persona(nameOf(settings)), `\n【关于 TA】${who}${call}。`];
   sections.push(`【现在】${timeText(now)}。你${describe(state)}。`);
   if (feeling) sections.push(`【此刻的感受】${feeling}`);
   if (lastUserAt) sections.push(`【上次聊天】距离 TA 上次找你过去了 ${sinceText(now - lastUserAt)}。`);
@@ -61,4 +62,4 @@ function buildMessages(ctx) {
   return [{ role: 'system', content: sections.join('\n\n') }, ...recent];
 }
 
-module.exports = { NAME, APP_NAME, PERSONA, buildMessages, timeText, sinceText };
+module.exports = { DEFAULT_NAME, APP_NAME, nameOf, persona, buildMessages, timeText, sinceText };

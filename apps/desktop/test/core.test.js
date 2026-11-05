@@ -112,6 +112,8 @@ test('提示词：包含人设、状态和记忆，只带最近 24 条对话', (
   const msgs = buildMessages({ state: life.initialState(at(12)), facts: [{ text: 'TA 喜欢猫' }], history, settings: { userName: '小明' }, now: at(12) });
   assert.equal(msgs[0].role, 'system');
   assert.match(msgs[0].content, /小鲸鱼/);
+  const named = buildMessages({ state: life.initialState(at(12)), settings: { daughterName: "阿栖" }, now: at(12) });
+  assert.match(named[0].content, /你叫阿栖/);
   assert.match(msgs[0].content, /TA 喜欢猫/);
   assert.match(msgs[0].content, /小明/);
   assert.equal(msgs.length, 25);

@@ -4,7 +4,7 @@ const { app, BrowserWindow, ipcMain, Notification, safeStorage, shell } = requir
 const path = require('path');
 const { JsonStore } = require('./store');
 const { Daughter } = require('./daughter');
-const { NAME, APP_NAME } = require('./persona');
+const { APP_NAME, nameOf } = require('./persona');
 const { DEFAULT_BASE } = require('./deepseek');
 
 const HEARTBEAT_MS = 60 * 1000;
@@ -42,6 +42,7 @@ if (!app.requestSingleInstanceLock()) {
       userName: raw.userName || '',
       userTitle: raw.userTitle || '',
       onebotUrl: raw.onebotUrl || '',
+      daughterName: raw.daughterName || '',
     };
   }
 
@@ -54,7 +55,7 @@ if (!app.requestSingleInstanceLock()) {
       if (safeStorage.isEncryptionAvailable()) raw.apiKeyEnc = safeStorage.encryptString(key).toString('base64');
       else raw.apiKeyPlain = key;
     }
-    for (const k of ['model', 'userName', 'userTitle', 'baseUrl', 'onebotUrl']) {
+    for (const k of ['model', 'userName', 'userTitle', 'baseUrl', 'onebotUrl', 'daughterName']) {
       if (typeof next[k] === 'string') raw[k] = next[k].trim();
     }
     store.save('settings', raw);
@@ -68,6 +69,7 @@ if (!app.requestSingleInstanceLock()) {
     userTitle: settings.userTitle,
     baseUrl: settings.baseUrl,
     onebotUrl: settings.onebotUrl,
+    daughterName: nameOf(settings),
   });
 
   // ---------- 窗口 ----------
@@ -106,7 +108,7 @@ if (!app.requestSingleInstanceLock()) {
   function notify(text) {
     if (win && win.isFocused()) return;
     if (Notification.isSupported()) {
-      const n = new Notification({ title: NAME, body: text.split('\n')[0] });
+      const n = new Notification({ title: nameOf(settings), body: text.split('\n')[0] });
       n.on('click', () => {
         if (win.isMinimized()) win.restore();
         win.show();
@@ -158,7 +160,7 @@ if (!app.requestSingleInstanceLock()) {
       send('notice', err.message);
     });
 
-    ipcMain.handle('init', () => ({ name: NAME, appName: APP_NAME, settings: publicSettings(), ...daughter.snapshot() }));
+    ipcMain.handle('init', () => ({ name: nameOf(settings), appName: APP_NAME, settings: publicSettings(), ...daughter.snapshot() }));
     ipcMain.handle('refresh-balance', () => daughter.refreshBalance());
     ipcMain.handle('send', async (_e, text) => {
       if (typeof text !== 'string' || !text.trim()) return { ok: false };

@@ -1,10 +1,10 @@
-// 小鲸鱼本体：把状态、身体、记忆、DeepSeek 调用串起来。不依赖 Electron，方便测试。
+// 女儿本体：把状态、身体、记忆、DeepSeek 调用串起来。不依赖 Electron，方便测试。
 
 const { EventEmitter } = require('events');
 const life = require('./life');
 const body = require('./body');
 const memory = require('./memory');
-const { buildMessages } = require('./persona');
+const { buildMessages, nameOf } = require('./persona');
 const deepseek = require('./deepseek');
 
 const EXTRACT_EVERY = 3; // 每 3 条用户消息整理一次记忆
@@ -230,7 +230,7 @@ class Daughter extends EventEmitter {
   async extractMemories() {
     const recent = this.history.slice(-10);
     if (!recent.some((m) => m.role === 'user')) return;
-    const raw = await this.call(memory.extractionMessages(recent, this.facts, this.getSettings().userName), { json: true, temperature: 0.2 });
+    const raw = await this.call(memory.extractionMessages(recent, this.facts, this.getSettings().userName, nameOf(this.getSettings())), { json: true, temperature: 0.2 });
     this.facts = memory.mergeFacts(this.facts, deepseek.parseJSONLoose(raw), this.now());
     this.store.save('facts', this.facts);
     this.advance([{ type: 'digested', n: EXTRACT_EVERY }]);
@@ -242,7 +242,7 @@ class Daughter extends EventEmitter {
     const date = life.dateKey(this.now() - 4 * 3600000); // 凌晨睡觉时写的算前一天
     if (this.diary.some((d) => d.date === date) || !this.getSettings().apiKey) return;
     const day = this.history.filter((m) => life.dateKey((m.at || 0) - 4 * 3600000) === date).slice(-60);
-    const text = (await this.call(memory.diaryMessages(date, day, this.getSettings().userName), { temperature: 1 })).trim();
+    const text = (await this.call(memory.diaryMessages(date, day, this.getSettings().userName, nameOf(this.getSettings())), { temperature: 1 })).trim();
     if (!text) return;
     this.diary.push({ date, text, at: this.now() });
     this.store.save('diary', this.diary);

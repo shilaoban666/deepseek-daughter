@@ -23,10 +23,10 @@ const SERIES = [
 
 function skeleton() {
   root.innerHTML = `
-  <div class="card c4"><h3>小鲸鱼 <em>状态在线显示</em><span class="tag" id="lv-stage">萌芽期</span></h3>
+  <div class="card c4"><h3><span data-name>${esc(S.name)}</span> <em>状态在线显示</em><span class="tag" id="lv-stage">萌芽期</span></h3>
     <div class="profile">
       <div class="holo"><svg viewBox="0 0 40 40"><use href="#whale"/></svg></div>
-      <div><h2>小鲸鱼</h2><div class="online" id="lv-online">● 在线</div><div class="doing" id="lv-doing">—</div><div class="dim" id="lv-mood">—</div></div>
+      <div><h2 data-name>${esc(S.name)}</h2><div class="online" id="lv-online">● 在线</div><div class="doing" id="lv-doing">—</div><div class="dim" id="lv-mood">—</div></div>
     </div>
   </div>
   <div class="card c3"><h3>运行 <em>uptime</em></h3><dl class="kv" id="lv-run"></dl></div>
