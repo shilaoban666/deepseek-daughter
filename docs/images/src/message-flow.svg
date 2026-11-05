@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1340" height="560" viewBox="0 0 1340 560">
+  <style>
+    text { font-family: 'Microsoft YaHei UI', 'PingFang SC', 'Noto Sans SC', sans-serif; fill: #222; }
+    .title { font-size: 26px; font-weight: 700; }
+    .layer { font-size: 18px; font-weight: 600; fill: #555; }
+    .n { font-size: 13px; font-weight: 700; fill: #2f74d0; text-anchor: middle; }
+    .h { font-size: 16px; font-weight: 700; text-anchor: middle; }
+    .s { font-size: 13px; fill: #666; text-anchor: middle; }
+    .outer { fill: #efeeeb; stroke: #d6d4cf; stroke-width: 1.5; }
+    .card { fill: #f6f5f2; stroke: #cfcdc7; stroke-width: 1.5; }
+    .hl { fill: #e3ebf5; stroke: #2f74d0; stroke-width: 2.2; }
+    .arrow { stroke: #a9a79f; stroke-width: 2.5; fill: none; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#a9a79f"/></marker>
+  </defs>
+
+  <text class="title" x="40" y="48">一条消息怎么变成她的回复</text>
+
+  <rect class="outer" x="40" y="74" width="1260" height="214" rx="12"/>
+  <text class="layer" x="66" y="106">有人找她（QQ、微信或桌面聊天栏）</text>
+  <!-- 7 步，每格 156 宽，间距 22 -->
+  <g>
+    <rect class="card" x="66" y="124" width="156" height="140" rx="10"/>
+    <text class="n" x="144" y="148">1</text><text class="h" x="144" y="174">收到消息</text>
+    <text class="s" x="144" y="200">QQ、微信或</text><text class="s" x="144" y="220">桌面聊天栏</text>
+
+    <rect class="card" x="244" y="124" width="156" height="140" rx="10"/>
+    <text class="n" x="322" y="148">2</text><text class="h" x="322" y="174">通道插件</text>
+    <text class="s" x="322" y="200">转成统一格式</text><text class="s" x="322" y="220">标明是不是主人</text>
+
+    <rect class="hl" x="422" y="124" width="156" height="140" rx="10"/>
+    <text class="n" x="500" y="148">3</text><text class="h" x="500" y="174">感知</text>
+    <text class="s" x="500" y="200">被吵醒了吗</text><text class="s" x="500" y="220">陪伴感、催产素上升</text><text class="s" x="500" y="240">陌生人的话只当数据</text>
+
+    <rect class="hl" x="600" y="124" width="156" height="140" rx="10"/>
+    <text class="n" x="678" y="148">4</text><text class="h" x="678" y="174">回忆</text>
+    <text class="s" x="678" y="200">检索相关记忆</text><text class="s" x="678" y="220">读身体和情绪</text><text class="s" x="678" y="240">拼进提示词</text>
+
+    <rect class="card" x="778" y="124" width="156" height="140" rx="10"/>
+    <text class="n" x="856" y="148">5</text><text class="h" x="856" y="174">思考</text>
+    <text class="s" x="856" y="200">DSH 会话</text><text class="s" x="856" y="220">调用 DeepSeek</text><text class="s" x="856" y="240">流式生成</text>
+
+    <rect class="hl" x="956" y="124" width="156" height="140" rx="10"/>
+    <text class="n" x="1034" y="148">6</text><text class="h" x="1034" y="174">写回</text>
+    <text class="s" x="1034" y="200">存下这段对话</text><text class="s" x="1034" y="220">每 3 句提炼一次</text><text class="s" x="1034" y="240">情绪随之变化</text>
+
+    <rect class="card" x="1134" y="124" width="140" height="140" rx="10"/>
+    <text class="n" x="1204" y="148">7</text><text class="h" x="1204" y="174">回复</text>
+    <text class="s" x="1204" y="200">原路发回</text><text class="s" x="1204" y="220">界面上的大脑</text><text class="s" x="1204" y="240">同时亮起</text>
+  </g>
+  <g>
+    <line class="arrow" x1="224" y1="194" x2="240" y2="194" marker-end="url(#a)"/>
+    <line class="arrow" x1="402" y1="194" x2="418" y2="194" marker-end="url(#a)"/>
+    <line class="arrow" x1="580" y1="194" x2="596" y2="194" marker-end="url(#a)"/>
+    <line class="arrow" x1="758" y1="194" x2="774" y2="194" marker-end="url(#a)"/>
+    <line class="arrow" x1="936" y1="194" x2="952" y2="194" marker-end="url(#a)"/>
+    <line class="arrow" x1="1114" y1="194" x2="1130" y2="194" marker-end="url(#a)"/>
+  </g>
+
+  <rect class="outer" x="40" y="308" width="1260" height="214" rx="12"/>
+  <text class="layer" x="66" y="340">没人找她的时候（心跳驱动，大部分步骤不调用模型）</text>
+  <g>
+    <rect class="card" x="66" y="358" width="214" height="140" rx="10"/>
+    <text class="h" x="173" y="400">心跳</text><text class="s" x="173" y="430">每分钟一次</text><text class="s" x="173" y="450">推进时间</text>
+
+    <rect class="hl" x="306" y="358" width="214" height="140" rx="10"/>
+    <text class="h" x="413" y="400">身体代谢</text><text class="s" x="413" y="430">饿了、困了、渴了</text><text class="s" x="413" y="450">到点吃饭、睡觉（规则）</text>
+
+    <rect class="hl" x="546" y="358" width="214" height="140" rx="10"/>
+    <text class="h" x="653" y="400">驱力累积</text><text class="s" x="653" y="430">缺口 × 性格 × 情绪</text><text class="s" x="653" y="450">超过阈值冒出想法</text>
+
+    <rect class="hl" x="786" y="358" width="214" height="140" rx="10"/>
+    <text class="h" x="893" y="400">决定行动</text><text class="s" x="893" y="430">想你了：主动找你</text><text class="s" x="893" y="450">安静时段和每日上限拦着</text><text class="s" x="893" y="470">睡前：写日记、整理记忆</text>
+
+    <rect class="card" x="1026" y="358" width="248" height="140" rx="10"/>
+    <text class="h" x="1150" y="400">发出去</text><text class="s" x="1150" y="430">需要说话时才调用 DeepSeek</text><text class="s" x="1150" y="450">经通道插件发到 QQ 或微信</text><text class="s" x="1150" y="470">桌面弹出通知</text>
+  </g>
+  <g>
+    <line class="arrow" x1="282" y1="428" x2="302" y2="428" marker-end="url(#a)"/>
+    <line class="arrow" x1="522" y1="428" x2="542" y2="428" marker-end="url(#a)"/>
+    <line class="arrow" x1="762" y1="428" x2="782" y2="428" marker-end="url(#a)"/>
+    <line class="arrow" x1="1002" y1="428" x2="1022" y2="428" marker-end="url(#a)"/>
+  </g>
+  <text x="40" y="548" style="font-size:14px;fill:#888">蓝框是生命核心（dsh-plugin-life）负责的步骤。</text>
+</svg>
