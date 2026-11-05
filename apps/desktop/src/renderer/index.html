@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'">
+  <title>大肥鱼</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- 左侧导航 -->
+    <nav class="rail">
+      <div class="logo" title="大肥鱼">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><use href="#whale"/></svg>
+        <span>大肥鱼</span>
+      </div>
+      <!-- 界面 1「动画」暂不展示：<button data-view="anim"> -->
+      <button class="navbtn active" data-view="brain"><i>◎</i><span>思考记忆</span></button>
+      <button class="navbtn" data-view="life"><i>♡</i><span>生命状态</span></button>
+      <button class="navbtn" data-view="links"><i>⌁</i><span>链接</span></button>
+      <div class="rail-foot">
+        <div class="pulse" id="railPulse"></div>
+        <small id="railStatus">在线</small>
+      </div>
+    </nav>
+
+    <!-- 主区域 -->
+    <main class="views">
+      <!-- 2. 思考记忆 -->
+      <section class="view active" id="view-brain">
+        <div class="brain-stage">
+          <canvas id="brainCanvas"></canvas>
+          <div class="brain-top">
+            <div class="seg"><button class="on" data-brainmode="holo">3D 全息</button><button data-brainmode="regions">脑区标注</button></div>
+          </div>
+          <div class="brain-hud-left">
+            <div class="hud-title">思考状态</div>
+            <div class="think-state" id="thinkState">—</div>
+            <div class="mini-pad" id="padText">—</div>
+            <div class="hud-title mt">想法队列</div>
+            <ul class="thoughts" id="thoughtList"></ul>
+          </div>
+          <div class="tooltip" id="brainTip" hidden></div>
+          <div class="brain-bottom">
+            <button data-brainact="flow">暂停流动</button>
+            <button data-brainact="spin" class="on">转动视角</button>
+            <button data-brainact="reset">重置视角</button>
+            <button data-brainact="labels">显示标注</button>
+            <button data-brainact="immersive">沉浸展示</button>
+          </div>
+        </div>
+        <aside class="mem-panel">
+          <div class="tabs" id="memTabs">
+            <button class="on" data-tab="layers">记忆分层</button>
+            <button data-tab="persona">人格</button>
+            <button data-tab="modes">思考模式</button>
+            <button data-tab="diary">日记</button>
+          </div>
+          <div class="tabbody" id="memBody"></div>
+        </aside>
+      </section>
+
+      <!-- 3. 生命状态 -->
+      <section class="view" id="view-life">
+        <div class="dash" id="dash"></div>
+      </section>
+
+      <!-- 4. 链接 -->
+      <section class="view" id="view-links">
+        <div class="links" id="links"></div>
+      </section>
+    </main>
+
+    <!-- 右侧聊天 -->
+    <aside class="chat" id="chat">
+      <header class="chat-head">
+        <div class="avatar"><svg viewBox="0 0 40 40"><use href="#whale"/></svg></div>
+        <div>
+          <b id="chatName">小鲸鱼</b>
+          <small id="chatStatus">—</small>
+        </div>
+        <button class="icon" id="chatFold" title="收起聊天">⟩</button>
+      </header>
+      <div class="msgs" id="msgs"></div>
+      <div class="setup" id="setup" hidden>
+        <p>还没有连接 DeepSeek，她现在说不了话。</p>
+        <button class="primary" id="goLinks">去「链接」里填 API Key</button>
+      </div>
+      <form class="composer" id="composer">
+        <textarea id="input" rows="2" placeholder="和她说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+        <button class="primary" id="sendBtn" type="submit">发送</button>
+      </form>
+    </aside>
+    <button class="chat-open" id="chatOpen" hidden title="打开聊天">聊天</button>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <!-- 小鲸鱼图标（原创矢量） -->
+  <svg width="0" height="0" style="position:absolute">
+    <symbol id="whale" viewBox="0 0 40 40">
+      <path d="M6 22c0-7 6-12 14-12 7 0 12 4 13 9l3-4c1-1 2 0 2 1l-1 6 1 5c0 1-1 2-2 1l-3-3c-2 5-7 8-13 8-8 0-14-4-14-11z" fill="currentColor" opacity=".95"/>
+      <path d="M8 25c3 3 8 4 12 4s8-1 10-3c-2 4-6 6-11 6-5 0-9-2-11-7z" fill="#fff" opacity=".55"/>
+      <circle cx="13" cy="19" r="1.6" fill="#0b1426"/>
+      <path d="M17 8c0-2 1-4 3-5M20 9c1-2 3-3 5-3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    </symbol>
+  </svg>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

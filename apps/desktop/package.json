@@ -1,0 +1,17 @@
+{
+  "name": "deepseek-daughter-desktop",
+  "productName": "大肥鱼",
+  "version": "0.1.0",
+  "description": "大肥鱼：住在你电脑里的 AI 女孩，由 DeepSeek 驱动",
+  "license": "Apache-2.0",
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "three": "^0.170.0"
+  }
+}

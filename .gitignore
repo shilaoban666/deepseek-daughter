@@ -1,0 +1,10 @@
+# 本地参考素材（版权属于原作者，不入库）
+/*.jpg
+/*.png
+/*.mp4
+
+node_modules/
+dist/
+out/
+.env
+*.log
