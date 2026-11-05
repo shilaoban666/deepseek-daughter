@@ -56,9 +56,11 @@ function deform(vx, vy, vz, side) {
   // 俯视轮廓像个蛋：后部（顶枕叶）最宽，额叶收窄
   const taper = 1 - 0.3 * Math.max(0, vx + 0.15) ** 2 - 0.22 * Math.max(0, -vx - 0.35) ** 2;
   y *= taper;
-  z *= 0.86 * (1 - 0.12 * Math.max(0, vx) ** 3);
+  z *= 1.08 * (1 - 0.12 * Math.max(0, vx) ** 3);
   // 腹侧压平，颞叶向外鼓
   if (z < 0) z *= 0.62 + 0.18 * smooth(-0.2, 0.6, -vx);
+  // 颞叶向下垂：侧面看，脑的中下部有一块往下鼓
+  z -= 0.34 * Math.exp(-(((vx + 0.05) / 0.42) ** 2)) * smooth(0, -0.7, vz) * smooth(0.1, 0.7, Math.abs(vy));
   const temporal = Math.exp(-(((vx - 0.05) / 0.45) ** 2)) * smooth(0, -0.6, vz) * Math.max(0, vy * side);
   y += side * temporal * 0.16;
   y += cy;
@@ -121,13 +123,21 @@ function buildParticles(rnd) {
       push(d.p.clone().sub(cyv).multiplyScalar(k).add(cyv), pal[0].clone().multiplyScalar(0.55), 0.8);
     }
   }
+  // 脑干：从大脑底部中间往下的一根柱子
+  for (let i = 0; i < 7000; i++) {
+    const t = rnd();
+    const ang = rnd() * Math.PI * 2;
+    const r = (0.3 - t * 0.1) * (0.85 + 0.15 * rnd());
+    const p = new THREE.Vector3(-0.4 - t * 0.3 + Math.cos(ang) * r * 0.8, Math.sin(ang) * r, -0.4 - t * 1.0);
+    push(p, (rnd() < 0.3 ? C.groove : new THREE.Color(0xd08aa8)).clone().multiplyScalar(0.7), 0.9);
+  }
   // 小脑：横向条纹
   for (let i = 0; i < 16000; i++) {
     const [vx, vy, vz] = randDir(rnd);
     const stripes = Math.abs(Math.sin(vx * 26 + noise(vx * 3, vy * 3, vz * 3) * 2.5));
     const g = smooth(0.05, 0.5, stripes);
     const r = 1 + (g - 1) * 0.06;
-    const p = new THREE.Vector3(-1.55 + vx * 0.42 * r, vy * 0.95 * r, -0.5 + vz * 0.36 * r);
+    const p = new THREE.Vector3(-1.3 + vx * 0.5 * r, vy * 0.95 * r, -0.72 + vz * 0.36 * r);
     if (g < 0.3) push(p, C.groove, 1.0);
     else if (rnd() < 0.5) push(p, new THREE.Color(0x8a78e0), 0.9);
   }
@@ -205,8 +215,8 @@ const REGION_POS = {
   basal: [0.3, 0.32, 0.02],
   thalamus: [-0.05, 0.12, -0.08],
   hypothalamus: [0.35, 0.1, -0.5],
-  brainstem: [-0.7, 0.05, -0.72],
-  cerebellum: [-1.55, 0.4, -0.55],
+  brainstem: [-0.6, 0.05, -0.95],
+  cerebellum: [-1.35, 0.4, -0.75],
 };
 
 // 一条消息从进来到回应的主路（设计文档 §4.1）
@@ -218,8 +228,8 @@ export function createBrain(canvas, { onHover } = {}) {
   renderer.setClearColor(0x000000, 0);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-  const camHome = new THREE.Vector3(1.3, 1.3, 9.0);
-  const lookAt = new THREE.Vector3(-0.35, 0, 0);
+  const camHome = new THREE.Vector3(0, 0.6, 8.2);
+  const lookAt = new THREE.Vector3(-0.45, -0.35, 0);
   camera.position.copy(camHome);
   camera.lookAt(lookAt);
 
@@ -231,52 +241,53 @@ export function createBrain(canvas, { onHover } = {}) {
 
   const tex = glowTexture();
 
-  // ---------- 底座：两端的全息环 + 贯穿的光束（横向） ----------
+  // ---------- 底座：脚下的全息投影台 ----------
   const holo = new THREE.Group();
+  holo.position.y = -2.05;
+  holo.scale.setScalar(0.72);
   scene.add(holo);
   const ringMat = (op) => new THREE.LineBasicMaterial({ color: 0x4fd6ff, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false });
-  function ringLoop(r, x, op, seg = 160, dash = false) {
+  function ringLoop(r, op, seg = 180, dash = false) {
     const pts = [];
     for (let i = 0; i <= seg; i++) {
       if (dash && i % 6 > 3) continue;
       const a = (i / seg) * Math.PI * 2;
-      pts.push(new THREE.Vector3(x, Math.cos(a) * r, Math.sin(a) * r));
+      pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
     }
     const g = new THREE.BufferGeometry().setFromPoints(pts);
     return dash ? new THREE.LineSegments(g, ringMat(op)) : new THREE.Line(g, ringMat(op));
   }
-  for (const x of [-2.75, 2.75]) {
-    holo.add(ringLoop(0.45, x, 0.9));
-    holo.add(ringLoop(0.9, x, 0.5));
-    holo.add(ringLoop(1.4, x, 0.35, 160, true));
-    holo.add(ringLoop(1.9, x, 0.25));
-    holo.add(ringLoop(2.35, x, 0.14, 200, true));
-    // 刻度点
+  holo.add(ringLoop(0.7, 0.9));
+  holo.add(ringLoop(1.3, 0.55));
+  holo.add(ringLoop(1.9, 0.4, 200, true));
+  holo.add(ringLoop(2.5, 0.28));
+  holo.add(ringLoop(3.1, 0.16, 240, true));
+  {
     const tick = [];
-    for (let i = 0; i < 90; i++) {
-      const a = (i / 90) * Math.PI * 2;
-      tick.push(x, Math.cos(a) * 2.1, Math.sin(a) * 2.1);
+    for (let i = 0; i < 120; i++) {
+      const a = (i / 120) * Math.PI * 2;
+      tick.push(Math.cos(a) * 2.8, 0, Math.sin(a) * 2.8);
     }
     const tg = new THREE.BufferGeometry();
     tg.setAttribute('position', new THREE.Float32BufferAttribute(tick, 3));
-    holo.add(new THREE.Points(tg, new THREE.PointsMaterial({ color: 0x9fe8ff, size: 0.035, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false })));
+    holo.add(new THREE.Points(tg, new THREE.PointsMaterial({ color: 0x9fe8ff, size: 0.04, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false })));
   }
+  // 从投影台往上的一圈淡光
   const beamMat = new THREE.ShaderMaterial({
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    side: THREE.DoubleSide,
     uniforms: { uTime: { value: 0 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: `uniform float uTime; varying vec2 vUv;
-      void main(){ float core = pow(1.0 - abs(vUv.y - 0.5) * 2.0, 6.0);
-        float pulse = 0.75 + 0.25 * sin(vUv.x * 40.0 - uTime * 4.0);
-        gl_FragColor = vec4(vec3(0.45, 0.9, 1.0) * core * pulse, core); }`,
+      void main(){ float a = pow(1.0 - vUv.y, 2.5) * 0.16;
+        float scan = 0.8 + 0.2 * sin(vUv.y * 60.0 - uTime * 3.0);
+        gl_FragColor = vec4(vec3(0.3, 0.8, 1.0) * a * scan, a); }`,
   });
-  const beam = new THREE.Mesh(new THREE.PlaneGeometry(5.9, 0.16), beamMat);
-  holo.add(beam);
-  const beam2 = beam.clone();
-  beam2.rotation.x = Math.PI / 2;
-  holo.add(beam2);
+  const cone = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, 1.6, 64, 1, true), beamMat);
+  cone.position.y = 0.8;
+  holo.add(cone);
 
   // 背景星点
   {
@@ -288,8 +299,13 @@ export function createBrain(canvas, { onHover } = {}) {
   }
 
   // ---------- 大脑（粒子） ----------
+  // pivot 负责转动；brain 内部用模型坐标，转成侧视：背侧朝上、左半球朝向镜头、前额在右
+  const pivot = new THREE.Group();
+  scene.add(pivot);
   const brain = new THREE.Group();
-  scene.add(brain);
+  brain.rotation.x = -Math.PI / 2;
+  brain.position.y = 0.15;
+  pivot.add(brain);
   const rand = (() => {
     let s = 42;
     return () => ((s = (s * 16807) % 2147483647) / 2147483647);
@@ -375,7 +391,7 @@ export function createBrain(canvas, { onHover } = {}) {
   for (const [id, p] of Object.entries(REGION_POS)) {
     const mat = new THREE.SpriteMaterial({ map: tex, color: 0x7fe3ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
     const sp = new THREE.Sprite(mat);
-    sp.position.set(...p);
+    sp.position.set(p[0], -p[1], p[2]); // 标在靠近镜头的左半球
     sp.scale.setScalar(0.22);
     nodeGroup.add(sp);
     regionNodes[id] = { sprite: sp, act: 0.2, target: 0.2 };
@@ -429,7 +445,7 @@ export function createBrain(canvas, { onHover } = {}) {
   let flowing = true;
   let dragging = false;
   let last = null;
-  let rotX = -0.12; // 绕长轴（x）
+  let rotX = 0.1; // 俯仰
   let rotY = 0.0;
   let userRotX = 0, userRotY = 0;
   let distance = camHome.length();
@@ -497,11 +513,11 @@ export function createBrain(canvas, { onHover } = {}) {
     const t = clock.elapsedTime;
 
     if (spin) {
-      rotX = -0.1 + Math.sin(t * 0.16) * 0.3;
-      rotY = Math.sin(t * 0.11) * 0.1;
+      rotX = 0.1 + Math.sin(t * 0.1) * 0.06;
+      rotY = Math.sin(t * 0.15) * 0.45;
     }
-    brain.rotation.set(rotX + userRotX, rotY + userRotY, 0);
-    holo.rotation.x = t * 0.15;
+    pivot.rotation.set(rotX + userRotX, rotY + userRotY, 0);
+    holo.rotation.y = t * 0.12;
     camera.position.copy(camHome).setLength(distance);
     camera.lookAt(lookAt);
 
@@ -545,7 +561,7 @@ export function createBrain(canvas, { onHover } = {}) {
     pGeo.attributes.position.needsUpdate = true;
     pGeo.attributes.color.needsUpdate = true;
 
-    brain.updateMatrixWorld();
+    pivot.updateMatrixWorld();
     // 悬停检测（屏幕空间）
     if (mouse.inside && !dragging) {
       let best = null, bd = 14;
