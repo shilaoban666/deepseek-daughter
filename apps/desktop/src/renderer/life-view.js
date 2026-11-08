@@ -1,7 +1,8 @@
 // 生命状态页：深色 HUD 仪表盘。卡片骨架只建一次，之后每次心跳更新数值；
-// 消化通路、分级调节、昼夜节律、生命曲线是 canvas，页面可见时逐帧绘制。
+// 消化通路、分级调节、昼夜节律是 canvas，页面可见时按 20 帧绘制；生命趋势是 SVG，有新数据才重画。
 
 import { esc, fmtClock, fmtDur, fitCanvas } from './util.js';
+import { createWhale } from './whale3d.js';
 
 const C = {
   cyan: '#4fd6ff', blue: '#7fb2ff', amber: '#f5c242', pink: '#ef6f8e', violet: '#a98bff', green: '#3ddc97', orange: '#f0a35e',
@@ -11,26 +12,32 @@ const C = {
 let root = null;
 let S = null;
 let raf = 0;
+let lastDraw = 0;
+let whale = null;
 
-const SERIES = [
-  ['satiety', '饱腹', C.amber],
-  ['energy', '精力', C.green],
-  ['social', '陪伴', C.cyan],
-  ['mood', '愉悦', C.pink],
-  ['cortisol', '皮质醇', C.orange],
-  ['oxytocin', '催产素', C.violet],
+// 生命趋势：每项指标一个小图。warn 返回需要提醒时的说法
+const TRENDS = [
+  { key: 'energy', name: '精力', warn: (x) => (x < 30 ? '有点累了' : '') },
+  { key: 'satiety', name: '饱腹', warn: (x) => (x < 30 ? '饿了' : '') },
+  { key: 'social', name: '陪伴', warn: (x) => (x < 30 ? '想有人陪' : '') },
+  { key: 'mood', name: '愉悦', warn: (x) => (x < 35 ? '情绪低落' : '') },
+  { key: 'cortisol', name: '皮质醇', warn: (x) => (x > 55 ? '压力偏高' : '') },
+  { key: 'oxytocin', name: '催产素', warn: () => '' },
+  { key: 'urge', name: '最强冲动', warn: (x) => (x >= 45 ? '正想做点什么' : '') },
 ];
+const TREND_WINDOW = 6 * 3600000;
 
 function skeleton() {
   root.innerHTML = `
   <div class="card c4"><h3><span data-name>${esc(S.name)}</span> <em>状态在线显示</em><span class="tag" id="lv-stage">萌芽期</span></h3>
     <div class="profile">
-      <div class="holo"><svg viewBox="0 0 40 40"><use href="#whale"/></svg></div>
-      <div><h2 data-name>${esc(S.name)}</h2><div class="online" id="lv-online">● 在线</div><div class="doing" id="lv-doing">—</div><div class="dim" id="lv-mood">—</div></div>
+      <div class="holo"><canvas id="lv-whale" title="拖动旋转，点一下做动作"></canvas></div>
+      <div><h2 data-name>${esc(S.name)}</h2><div class="online" id="lv-online">● 在线</div><div class="doing" id="lv-doing">—</div><div class="dim" id="lv-mood">—</div>
+        <div class="whale-acts"><button data-whale="spin">转圈</button><button data-whale="jump">跳一下</button><button data-whale="spout">喷水</button><button data-whale="wag">摇尾巴</button></div></div>
     </div>
   </div>
   <div class="card c3"><h3>运行 <em>uptime</em></h3><dl class="kv" id="lv-run"></dl></div>
-  <div class="card c5"><h3>生命曲线 <em>最近 6 小时</em></h3><canvas class="chart" id="lv-chart"></canvas><div class="legend">${SERIES.map(([, n, c]) => `<span><i style="background:${c}"></i>${n}</span>`).join('')}</div></div>
+  <div class="card c5"><h3>生命趋势 <em id="lv-trend-span">—</em></h3><div id="lv-trends"></div></div>
 
   <div class="card c4"><h3>事物摄取记录</h3><div id="lv-intake"></div></div>
   <div class="card c4"><h3>体内环境</h3><dl class="kv" id="lv-env"></dl></div>
@@ -46,6 +53,15 @@ function skeleton() {
 
   <div class="card c12"><h3>八大生命系统</h3><div class="sys-grid" id="lv-sys"></div></div>`;
   root.dataset.built = '1';
+  try {
+    whale = createWhale(root.querySelector('#lv-whale'));
+    root.querySelectorAll('[data-whale]').forEach((b) => b.addEventListener('click', () => whale.act(b.dataset.whale)));
+  } catch (err) {
+    console.error(err);
+    root.querySelector('.holo').innerHTML = '<svg viewBox="0 0 40 40"><use href="#whale"/></svg>';
+    root.querySelector('.whale-acts').remove();
+  }
+  bindTrendHover();
 }
 
 const bar = (name, val, color, extra = '') =>
@@ -64,20 +80,24 @@ function update() {
   const $ = (id) => root.querySelector('#' + id);
 
   const firstAt = S.history[0]?.at;
-  const days = firstAt ? Math.floor((Date.now() - firstAt) / 86400000) + 1 : 1;
+  const days = v.days || (firstAt ? Math.floor((Date.now() - firstAt) / 86400000) + 1 : 1);
   $('lv-stage').textContent = `${stage(days)} · 第 ${days} 天`;
-  $('lv-online').innerHTML = s.asleep ? '<span style="color:#a98bff">● 睡眠中</span>' : '● 在线';
+  $('lv-online').innerHTML = v.immune?.fever ? '<span style="color:#ef6f8e">● 发烧中</span>' : s.asleep ? '<span style="color:#a98bff">● 睡眠中</span>' : '● 在线';
   $('lv-doing').textContent = s.asleep ? '在被窝里睡觉' : `正在${s.activity}`;
   $('lv-mood').textContent = `心情 ${m.pad.label} · ${m.thinking}`;
+  whale?.setState({ asleep: s.asleep });
+  renderTrends();
 
   const resp = s.asleep ? 12 : Math.round(14 + b.nt.norepinephrine / 8);
   $('lv-run').innerHTML = `
     <dt>运行</dt><dd>${fmtDur(v.uptimeMs)}</dd>
     <dt>心跳</dt><dd>${v.beats} 次 · 60s</dd>
     <dt>模式</dt><dd>LIVE · 本地</dd>
-    <dt>状态</dt><dd class="ok">● ${s.asleep ? '休眠' : '在线'}</dd>
+    <dt>状态</dt><dd class="ok">● ${v.immune?.fever ? '发烧' : s.asleep ? '休眠' : '在线'}</dd>
     <dt>呼吸</dt><dd>${resp} 次/分</dd>
     <dt>体温</dt><dd>${b.temp.toFixed(1)}℃</dd>
+    <dt>记忆</dt><dd>${v.memoryStats?.active ?? 0} 条 · 归档 ${v.memoryStats?.archived ?? 0}</dd>
+    <dt>神经信号</dt><dd>学了 ${v.mind.neuro?.learned ?? 0} 条连接</dd>
     <dt>大模型</dt><dd>${esc(S.settings.model || '—')}</dd>`;
 
   const last = b.intake[b.intake.length - 1];
@@ -102,6 +122,9 @@ function update() {
 
   const bal = v.balance;
   const u = v.usageToday;
+  const budget = v.budget || { used: 0, limit: 0, ratio: 0 };
+  const pct = Math.round(Math.min(1, budget.ratio || 0) * 100);
+  const budgetColor = pct >= 95 ? C.pink : pct >= 80 ? C.amber : C.green;
   let tag = '未连接', main = '—', note = '去「链接」里填 DeepSeek API Key';
   if (bal && !bal.error) {
     main = bal.total.toFixed(2);
@@ -115,8 +138,9 @@ function update() {
   $('lv-wallet').innerHTML = `
     <div class="big">${main}<small>${bal && !bal.error ? '元' : ''}</small></div>
     <div class="dim" style="font-size:12px;margin:2px 0 10px">${esc(note)}</div>
-    <dl class="kv"><dt>今日输入</dt><dd>${u.prompt.toLocaleString()} tokens</dd><dt>今日输出</dt><dd>${u.completion.toLocaleString()} tokens</dd><dt>今日调用</dt><dd>${u.calls} 次</dd></dl>
-    <div class="faint" style="font-size:11px;margin-top:8px">余额就是她的饭钱。低于 10 元时她会觉得有生存压力。</div>`;
+    <dl class="kv"><dt>今日输入</dt><dd>${u.prompt.toLocaleString()} tokens</dd><dt>今日输出</dt><dd>${u.completion.toLocaleString()} tokens</dd><dt>今日调用</dt><dd>${u.calls} 次</dd><dt>今日预算</dt><dd>${budget.used.toLocaleString()} / ${budget.limit ? budget.limit.toLocaleString() : '不限'}</dd></dl>
+    <div class="bar" style="margin-top:8px"><span>Token</span><div class="track"><div class="fill" style="width:${pct}%;background:${budgetColor};box-shadow:0 0 8px ${budgetColor}"></div></div><span class="num">${pct}%</span></div>
+    <div class="faint" style="font-size:11px;margin-top:8px">Token 就是她的饭钱：预算快用完时她会说自己累了、想睡觉，而不是突然报错。</div>`;
 
   $('lv-digest-tag').textContent = `今日三餐 ${s.mealsEaten?.list?.length || 0} 次 · 代谢 ${(0.5 + b.glucose / 120).toFixed(2)}x`;
   $('lv-nt').innerHTML = S.meta.transmitters.map((t) => bar(t.name, b.nt[t.id], t.color)).join('') + `<div class="faint" style="font-size:11px;margin-top:6px">${esc(ntHint(b))}</div>`;
@@ -124,9 +148,17 @@ function update() {
   $('lv-hpa-bars').innerHTML = bar('CRH', b.hpa.crh, C.pink) + bar('ACTH', b.hpa.acth, C.amber) + bar('皮质醇', b.nt.cortisol, C.orange) + bar('褪黑素', b.nt.melatonin, C.violet) + bar('催产素', b.nt.oxytocin, C.cyan);
 
   const thr = '<div style="position:absolute;left:45%;top:-2px;bottom:-2px;width:1px;background:#ef6f8e;opacity:.7"></div>';
+  const urges = v.mind.urges || {};
   $('lv-drives').innerHTML =
-    S.meta.drives.map((d) => bar(d.name, b.drives[d.id], b.drives[d.id] >= 45 ? C.pink : C.blue, thr)).join('') +
-    `<div class="faint" style="font-size:11px;margin-top:6px">最强的驱力超过阈值时会冒出一个想法，见「思考记忆」页的想法队列。</div>`;
+    S.meta.drives
+      .map((d) => {
+        const u = urges[d.id];
+        const val = u ? u.value : b.drives[d.id] || 0;
+        const title = u ? `缺口 ${Math.round(u.gap * 100)}% × 性格权重 ${u.weight} × 情绪 ${u.mod}` : '';
+        return `<div class="drive" title="${esc(title)}">${bar(d.name, val, val >= 45 ? C.pink : C.blue, thr)}</div>`;
+      })
+      .join('') +
+    `<div class="faint" style="font-size:11px;margin-top:6px">冲动 = 缺口 × 性格权重 × 情绪调节。最强的超过阈值就冒一个想法，规则行为（吃饭、睡觉）不会调用大模型。</div>`;
 
   const sysColor = [C.amber, C.green, C.violet, C.cyan, C.blue, C.green, C.orange, C.pink];
   $('lv-sys').innerHTML = m.systems
@@ -150,49 +182,92 @@ function ntHint(b) {
 }
 
 // ---------- canvas ----------
-function drawChart(t) {
-  const c = root.querySelector('#lv-chart');
-  const { g, w, h } = fitCanvas(c, 150);
-  g.clearRect(0, 0, w, h);
-  g.strokeStyle = C.line;
-  g.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = 6 + ((h - 18) * i) / 4;
-    g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+// ---------- 生命趋势 ----------
+let trendData = {};
+
+function sparkPath(values) {
+  let lo = Math.min(...values), hi = Math.max(...values);
+  // 变化很小时不放大噪声：纵轴至少跨 14 个点
+  if (hi - lo < 14) {
+    const mid = (hi + lo) / 2;
+    lo = Math.max(0, mid - 7);
+    hi = lo + 14;
   }
-  const data = S.vitals.vitals;
-  if (data.length < 2) {
-    g.fillStyle = C.faint;
-    g.font = '12px sans-serif';
-    g.fillText('数据积累中，每分钟采样一次', 10, h / 2);
+  const n = values.length;
+  const pts = values.map((x, i) => `${((i / (n - 1)) * 100).toFixed(2)},${(28 - ((x - lo) / (hi - lo)) * 25).toFixed(2)}`);
+  return { line: `M${pts.join('L')}`, area: `M0,30L${pts.join('L')}L100,30Z` };
+}
+
+function renderTrends() {
+  const box = root.querySelector('#lv-trends');
+  const span = root.querySelector('#lv-trend-span');
+  const all = S.vitals.vitals || [];
+  const t1 = all[all.length - 1]?.t ?? 0;
+  const data = all.filter((p) => p.t >= t1 - TREND_WINDOW);
+  if (data.length < 2 || t1 - data[0].t < 10 * 60000) {
+    span.textContent = '每分钟采样';
+    box.innerHTML = '<div class="empty">数据积累中，再过几分钟就能看到趋势。</div>';
     return;
   }
-  const t1 = data[data.length - 1].t, t0 = t1 - 6 * 3600000;
-  const X = (tt) => ((tt - t0) / (t1 - t0)) * w;
-  const Y = (v) => 6 + (h - 18) * (1 - v / 100);
-  for (const [key, , color] of SERIES) {
-    g.strokeStyle = color;
-    g.lineWidth = 1.6;
-    g.shadowColor = color;
-    g.shadowBlur = 6;
-    g.beginPath();
-    let started = false;
-    for (const p of data) {
-      if (p.t < t0) continue;
-      const x = X(p.t), y = Y(p[key] ?? 0);
-      started ? g.lineTo(x, y) : g.moveTo(x, y);
-      started = true;
-    }
-    g.stroke();
-  }
-  g.shadowBlur = 0;
-  g.fillStyle = C.faint;
-  g.font = '10px Consolas, monospace';
-  for (let i = 0; i <= 6; i++) {
-    const tt = t0 + (i * (t1 - t0)) / 6;
-    const label = fmtClock(tt);
-    g.fillText(label, Math.min(w - 30, Math.max(0, X(tt) - 14)), h - 2);
-  }
+  const mins = Math.round((t1 - data[0].t) / 60000);
+  const label = mins >= 60 ? `${(mins / 60).toFixed(mins >= 600 ? 0 : 1)} 小时` : `${mins} 分钟`;
+  span.textContent = `最近 ${label}`;
+  trendData = {};
+  const rows = TRENDS.map((m) => {
+    const values = data.map((p) => p[m.key] ?? 0);
+    const now = values[values.length - 1];
+    const delta = Math.round(now - values[0]);
+    trendData[m.key] = { values, times: data.map((p) => p.t), now };
+    return { ...m, values, now, delta, warning: m.warn(now) };
+  });
+  const alerts = rows.filter((r) => r.warning);
+  const biggest = [...rows].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
+  const change = biggest.delta ? `变化最大：${biggest.name} ${biggest.delta > 0 ? '↑' : '↓'}${Math.abs(biggest.delta)}` : '这段时间很平稳';
+  const summary = alerts.length
+    ? `<b class="warn">⚠ ${alerts.map((r) => `${r.warning}（${r.name} ${Math.round(r.now)}）`).join('、')}</b><span>${change}</span>`
+    : `<b>✓ 状态良好</b><span>${change}</span>`;
+  box.innerHTML = `<div class="trend-sum">${summary}</div><div class="trend-grid">${rows.map((r) => {
+    const p = sparkPath(r.values);
+    const d = r.delta === 0 ? '<em>持平</em>' : `<em>${r.delta > 0 ? '↑' : '↓'}${Math.abs(r.delta)}</em>`;
+    return `<div class="trend" data-key="${r.key}">
+      <div class="trend-top"><span>${esc(r.name)}</span>${r.warning ? '<i class="warn" title="' + esc(r.warning) + '">⚠</i>' : ''}</div>
+      <div class="trend-val"><b>${Math.round(r.now)}</b>${d}</div>
+      <div class="trend-plot"><svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path d="${p.area}" class="a"/><path d="${p.line}" class="l"/></svg><div class="cross" hidden></div></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/** 悬停某个小图：看任意时刻的数值 */
+function bindTrendHover() {
+  const box = root.querySelector('#lv-trends');
+  box.addEventListener('mousemove', (e) => {
+    const plot = e.target.closest?.('.trend-plot');
+    box.querySelectorAll('.trend').forEach((tile) => {
+      const inside = plot && tile.contains(plot);
+      const d = trendData[tile.dataset.key];
+      const val = tile.querySelector('.trend-val');
+      const cross = tile.querySelector('.cross');
+      if (!inside || !d) {
+        cross.hidden = true;
+        if (val.dataset.base) { val.innerHTML = val.dataset.base; delete val.dataset.base; }
+        return;
+      }
+      const r = plot.getBoundingClientRect();
+      const k = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      const i = Math.round(k * (d.values.length - 1));
+      cross.hidden = false;
+      cross.style.left = `${k * 100}%`;
+      if (!val.dataset.base) val.dataset.base = val.innerHTML;
+      val.innerHTML = `<b>${Math.round(d.values[i])}</b><em>${fmtClock(d.times[i])}</em>`;
+    });
+  });
+  box.addEventListener('mouseleave', () => {
+    box.querySelectorAll('.trend').forEach((tile) => {
+      const val = tile.querySelector('.trend-val');
+      tile.querySelector('.cross').hidden = true;
+      if (val.dataset.base) { val.innerHTML = val.dataset.base; delete val.dataset.base; }
+    });
+  });
 }
 
 function vessel(g, x, y, w, h, level, color, label, sub, t) {
@@ -381,8 +456,13 @@ function drawClock(t) {
 function loop() {
   raf = 0;
   if (!root || S.view !== 'life' || !S.vitals) return;
-  const t = performance.now() / 1000;
-  drawChart(t);
+  const now = performance.now();
+  if (now - lastDraw < 48) {
+    raf = requestAnimationFrame(loop);
+    return;
+  }
+  lastDraw = now;
+  const t = now / 1000;
   drawDigest(t);
   drawHPA(t);
   drawClock(t);

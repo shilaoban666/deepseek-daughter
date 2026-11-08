@@ -1,17 +1,22 @@
 // Electron 主进程
 
 const { app, BrowserWindow, ipcMain, Notification, safeStorage, shell } = require('electron');
+const fs = require('fs');
 const path = require('path');
+const config = require('./config');
 const { JsonStore } = require('./store');
 const { Daughter } = require('./daughter');
 const { APP_NAME, nameOf } = require('./persona');
 const { DEFAULT_BASE } = require('./deepseek');
 
-const HEARTBEAT_MS = 60 * 1000;
 const DEFAULT_MODEL = 'deepseek-chat';
 
 app.setName(APP_NAME);
-if (process.env.DFY_DATA_DIR) app.setPath('userData', path.resolve(process.env.DFY_DATA_DIR));
+if (process.env.DFY_DATA_DIR) {
+  const dir = path.resolve(process.env.DFY_DATA_DIR);
+  fs.mkdirSync(dir, { recursive: true }); // 目录不存在时单实例锁会失败
+  app.setPath('userData', dir);
+}
 if (process.platform === 'win32') app.setAppUserModelId('io.github.shilaoban666.deepseekdaughter');
 
 if (!app.requestSingleInstanceLock()) {
@@ -86,7 +91,7 @@ if (!app.requestSingleInstanceLock()) {
       title: APP_NAME,
       backgroundColor: '#060a14',
       autoHideMenuBar: true,
-      show: !process.env.DFY_SHOT, // 开发截图时不弹出窗口
+      show: !process.env.DFY_SHOT || process.env.DFY_SHOT_SHOW === '1', // 开发截图时不弹出窗口
       webPreferences: {
         backgroundThrottling: !process.env.DFY_SHOT,
         preload: path.join(__dirname, 'preload.js'),
@@ -124,26 +129,49 @@ if (!app.requestSingleInstanceLock()) {
     const fs = require('fs');
     fs.mkdirSync(dir, { recursive: true });
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-    await new Promise((r) => win.webContents.once('did-finish-load', r));
+    // 页面可能已经加载完，别等一个永远不来的事件
+    if (win.webContents.isLoadingMainFrame()) await new Promise((r) => win.webContents.once('did-finish-load', r));
     await wait(2500);
     for (const say of (process.env.DFY_SHOT_SAY || '').split('|').filter(Boolean)) {
       await win.webContents.executeJavaScript(`(() => { const i = document.querySelector('#input'); i.value = ${JSON.stringify(say)}; document.querySelector('#composer').requestSubmit(); })()`);
       await wait(3000);
     }
+    // 开发用：在截图前触发一次 IPC（consolidate / backup），检查主进程这条链是不是通的
+    for (const act of (process.env.DFY_SHOT_ACTIONS || '').split(',').filter(Boolean)) {
+      const r = await win.webContents.executeJavaScript(act === 'backup' ? 'window.fish.backup()' : 'window.fish.consolidate()');
+      console.log('[shot] action', act, JSON.stringify(r).slice(0, 200));
+      await wait(1500);
+    }
     for (const v of (process.env.DFY_SHOT_VIEWS || 'brain,life,links').split(',')) {
       await win.webContents.executeJavaScript(`window.__setView && window.__setView(${JSON.stringify(v)})`);
       await wait(2500);
-      const img = await win.webContents.capturePage();
-      fs.writeFileSync(path.join(dir, `${v}.png`), img.toPNG());
+      if (v === 'brain') {
+        // 先截一张全息大脑，再截四个标签
+        {
+          const img = await win.webContents.capturePage();
+          fs.writeFileSync(path.join(dir, `${v}.png`), img.toPNG());
+        }
+        for (const tab of ['layers', 'persona', 'regions', 'diary']) {
+          await win.webContents.executeJavaScript(`document.querySelector('#memTabs button[data-tab="${tab}"]')?.click()`);
+          await wait(900);
+          const img = await win.webContents.capturePage();
+          fs.writeFileSync(path.join(dir, `${v}-${tab}.png`), img.toPNG());
+        }
+      } else {
+        const img = await win.webContents.capturePage();
+        fs.writeFileSync(path.join(dir, `${v}.png`), img.toPNG());
+      }
     }
     app.quit();
   }
 
   // ---------- 启动 ----------
   app.whenReady().then(() => {
-    store = new JsonStore(path.join(app.getPath('userData'), 'data'));
+    config.init({ dir: app.getPath('userData') });
+    const dataDir = path.join(app.getPath('userData'), 'data');
+    store = new JsonStore(dataDir);
     settings = loadSettings();
-    daughter = new Daughter({ store, getSettings: () => settings });
+    daughter = new Daughter({ store, getSettings: () => settings, dataDir });
 
     daughter.on('vitals', (v, events) => send('vitals', v, events));
     daughter.on('reply-start', (id) => send('reply-start', id));
@@ -153,12 +181,17 @@ if (!app.requestSingleInstanceLock()) {
       send('proactive', msg);
       notify(msg.content);
     });
-    daughter.on('facts', (facts) => send('facts', facts));
+    daughter.on('memory', (payload) => send('memory', payload));
+    daughter.on('profile', (profile) => send('profile', profile));
+    daughter.on('thought', (thought) => send('thought', thought));
     daughter.on('diary', (diary) => send('diary', diary.slice(-30)));
+    daughter.on('notice', (text) => send('notice', text));
     daughter.on('error', (err) => {
       console.error('[daughter]', err);
       send('notice', err.message);
     });
+
+    const heartbeatMs = (config.get().heartbeatMinutes || 1) * 60 * 1000;
 
     ipcMain.handle('init', () => ({ name: nameOf(settings), appName: APP_NAME, settings: publicSettings(), ...daughter.snapshot() }));
     ipcMain.handle('refresh-balance', () => daughter.refreshBalance());
@@ -177,7 +210,21 @@ if (!app.requestSingleInstanceLock()) {
       return publicSettings();
     });
     ipcMain.handle('forget', (_e, id) => daughter.forget(String(id)));
+    ipcMain.handle('restore-memory', (_e, id) => daughter.restoreMemory(String(id)));
+    ipcMain.handle('delete-memory', (_e, id) => daughter.deleteMemory(String(id)));
+    ipcMain.handle('edit-memory', (_e, id, text) => daughter.editMemory(String(id), String(text)));
+    ipcMain.handle('resolve-conflict', (_e, id, keepId) => daughter.resolveConflict(String(id), String(keepId)));
+    ipcMain.handle('undo-growth', (_e, id) => daughter.undoGrowth(String(id)));
+    ipcMain.handle('consolidate', () => daughter.consolidateNow({ force: true }));
+    ipcMain.handle('receive-external', (_e, payload) => daughter.receiveExternal(payload || {}));
+    ipcMain.handle('backup', () => daughter.runBackup(true));
+    ipcMain.handle('backups', () => (daughter.backup ? daughter.backup.list() : []));
     ipcMain.handle('usage', () => daughter.snapshot().usageToday);
+    // 皮层低模约 6MB。页面的 CSP 不允许 fetch，由主进程读出来传给界面
+    ipcMain.handle('cortex', () => {
+      const read = (f) => fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'cortex', f));
+      return { lh: read('lh.lod.bin'), rh: read('rh.lod.bin') };
+    });
     ipcMain.handle('open-external', (_e, url) => {
       if (/^https:\/\/platform\.deepseek\.com\//.test(url)) shell.openExternal(url);
     });
@@ -185,7 +232,7 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     if (process.env.DFY_SHOT) shoot(process.env.DFY_SHOT);
     daughter.heartbeat().catch((err) => console.error(err));
-    setInterval(() => daughter.heartbeat().catch((err) => console.error(err)), HEARTBEAT_MS);
+    setInterval(() => daughter.heartbeat().catch((err) => console.error(err)), heartbeatMs);
     daughter.refreshBalance().catch(() => {});
     setInterval(() => daughter.refreshBalance().catch(() => {}), 10 * 60 * 1000);
 

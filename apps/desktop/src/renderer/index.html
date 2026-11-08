@@ -31,7 +31,7 @@
         <div class="brain-stage">
           <canvas id="brainCanvas"></canvas>
           <div class="brain-top">
-            <div class="seg"><button class="on" data-brainmode="holo">3D 全息</button><button data-brainmode="regions">脑区标注</button></div>
+            <div class="seg"><button class="on" data-brainmode="holo">3D 全息</button><button data-brainmode="regions">脑区标注</button><button data-brainmode="ocean">意识海</button></div>
           </div>
           <div class="brain-hud-left">
             <div class="hud-title">思考状态</div>
@@ -39,6 +39,8 @@
             <div class="mini-pad" id="padText">—</div>
             <div class="hud-title mt">想法队列</div>
             <ul class="thoughts" id="thoughtList"></ul>
+            <div class="hud-title mt">驱力冲动</div>
+            <ul class="thoughts" id="urgeList"></ul>
           </div>
           <div class="tooltip" id="brainTip" hidden></div>
           <div class="brain-bottom">
@@ -53,7 +55,7 @@
           <div class="tabs" id="memTabs">
             <button class="on" data-tab="layers">记忆分层</button>
             <button data-tab="persona">人格</button>
-            <button data-tab="modes">思考模式</button>
+            <button data-tab="regions">脑区</button>
             <button data-tab="diary">日记</button>
           </div>
           <div class="tabbody" id="memBody"></div>

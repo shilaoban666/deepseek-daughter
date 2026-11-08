@@ -21,6 +21,8 @@ const MODELS = [
 export function renderLinks(root, S, actions) {
   const st = S.settings;
   const bal = S.vitals?.balance;
+  const mem = S.memory?.stats || {};
+  const backups = S.backups || null;
   let status = '<span class="status">未连接</span>';
   if (st.hasKey && bal && !bal.error) status = `<span class="status ok">● 已连接 · 余额 ${bal.total.toFixed(2)} 元</span>`;
   else if (st.hasKey && bal?.error) status = `<span class="status err">${esc(bal.error)}</span>`;
@@ -56,6 +58,18 @@ export function renderLinks(root, S, actions) {
       <div class="row"><button class="primary" id="lk-save-me">保存</button></div>
     </div>
 
+    <div class="card plat">
+      <div class="plat-head"><div class="plat-icon" style="background:linear-gradient(135deg,#a98bff,#4d6bfe)">记</div>
+        <div><b>记忆与备份</b><small>${mem.active || 0} 条在记着 · ${mem.archived || 0} 条归档 · ${mem.conflicts || 0} 条待求证</small></div></div>
+      <p>她每晚睡觉时会回放当天、提炼事实、写日记、微调性格；六层记忆和每天一次的备份都只存在这台电脑上。</p>
+      <div class="row">
+        <button class="ghost" id="lk-consolidate">现在整理一次</button>
+        <button class="ghost" id="lk-backup">立即备份</button>
+        <button class="link" id="lk-backups">查看备份</button>
+      </div>
+      ${backups && backups.length ? `<ul class="intake-list">${backups.map((b) => `<li><span class="mono">${esc(b.day)}</span><span>${b.files} 个文件</span><b>${(b.bytes / 1024).toFixed(1)} KB</b></li>`).join('')}</ul>` : ''}
+    </div>
+
     ${SOON.map(
       (p) => `
     <div class="card plat disabled">
@@ -78,6 +92,9 @@ export function renderLinks(root, S, actions) {
   q('#lk-refresh').addEventListener('click', () => actions.refreshBalance());
   q('#lk-get').addEventListener('click', () => actions.openExternal('https://platform.deepseek.com/api_keys'));
   q('#lk-save-me').addEventListener('click', () => actions.save({ daughterName: q('#lk-dname').value, userName: q('#lk-name').value, userTitle: q('#lk-title').value }));
+  q('#lk-consolidate').addEventListener('click', () => actions.consolidate());
+  q('#lk-backup').addEventListener('click', () => actions.backup());
+  q('#lk-backups').addEventListener('click', () => actions.loadBackups());
   root.querySelectorAll('[data-save]').forEach((b) =>
     b.addEventListener('click', () => {
       const k = b.dataset.save;

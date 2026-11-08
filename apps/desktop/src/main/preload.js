@@ -10,9 +10,22 @@ const on = (channel) => (fn) => {
 
 contextBridge.exposeInMainWorld('fish', {
   init: () => ipcRenderer.invoke('init'),
+  cortex: () => ipcRenderer.invoke('cortex'),
   send: (text) => ipcRenderer.invoke('send', text),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
+  // 记忆：忘掉（归档）、恢复、彻底删除、改内容、处理矛盾
   forget: (id) => ipcRenderer.invoke('forget', id),
+  restoreMemory: (id) => ipcRenderer.invoke('restore-memory', id),
+  deleteMemory: (id) => ipcRenderer.invoke('delete-memory', id),
+  editMemory: (id, text) => ipcRenderer.invoke('edit-memory', id, text),
+  resolveConflict: (id, keepId) => ipcRenderer.invoke('resolve-conflict', id, keepId),
+  // 人格：撤销一次成长
+  undoGrowth: (id) => ipcRenderer.invoke('undo-growth', id),
+  // 睡眠巩固、备份
+  consolidate: () => ipcRenderer.invoke('consolidate'),
+  receiveExternal: (payload) => ipcRenderer.invoke('receive-external', payload),
+  backup: () => ipcRenderer.invoke('backup'),
+  backups: () => ipcRenderer.invoke('backups'),
   usage: () => ipcRenderer.invoke('usage'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   refreshBalance: () => ipcRenderer.invoke('refresh-balance'),
@@ -21,7 +34,9 @@ contextBridge.exposeInMainWorld('fish', {
   onReplyDelta: on('reply-delta'),
   onReplyEnd: on('reply-end'),
   onProactive: on('proactive'),
-  onFacts: on('facts'),
+  onMemory: on('memory'),
+  onProfile: on('profile'),
+  onThought: on('thought'),
   onDiary: on('diary'),
   onNotice: on('notice'),
 });
