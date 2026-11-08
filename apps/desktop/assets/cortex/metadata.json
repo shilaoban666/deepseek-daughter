@@ -1,0 +1,19 @@
+{
+  "source": "Derived from the cortical surface and strands described in LICENSE-ATTRIBUTION.md",
+  "lod": {
+    "lh": {
+      "vertices": 28652,
+      "triangles": 66420,
+      "points": 24081,
+      "strandVertices": 42750,
+      "strands": 620
+    },
+    "rh": {
+      "vertices": 28407,
+      "triangles": 66538,
+      "points": 24178,
+      "strandVertices": 41840,
+      "strands": 620
+    }
+  }
+}
