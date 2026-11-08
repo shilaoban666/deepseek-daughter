@@ -12,13 +12,39 @@
     "eval": "node eval/run.js",
     "eval:strict": "node eval/run.js --strict",
     "simulate": "node eval/simulate.js 7 --strict",
-    "shots": "node scripts/shots.js"
+    "shots": "node scripts/shots.js",
+    "dist": "electron-builder --win portable",
+    "e2e": "node scripts/e2e.js"
   },
   "devDependencies": {
     "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
     "three": "^0.170.0"
   },
   "engines": {
     "node": ">=20"
+  },
+  "build": {
+    "appId": "io.github.shilaoban666.dafeiyu",
+    "productName": "大肥鱼",
+    "artifactName": "dafeiyu-${version}-portable.exe",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "config/**/*",
+      "assets/**/*",
+      "package.json",
+      "!src/**/*.map"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "build/icon.png"
+    },
+    "electronDownload": {
+      "mirror": "https://npmmirror.com/mirrors/electron/"
+    }
   }
 }
