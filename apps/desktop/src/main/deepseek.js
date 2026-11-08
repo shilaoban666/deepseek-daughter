@@ -42,16 +42,18 @@ function friendlyError(status, body) {
  * @param {Array<{role:string,content:string}>} opts.messages
  * @param {boolean} [opts.json] 要求返回 JSON 对象
  * @param {number} [opts.temperature]
+ * @param {number} [opts.maxTokens]
  * @param {(delta:string)=>void} [opts.onDelta] 有它就走流式
  * @param {AbortSignal} [opts.signal]
  * @returns {Promise<{text:string, usage:{prompt_tokens:number, completion_tokens:number}|null}>}
  */
 async function chat(opts) {
-  const { apiKey, baseUrl = DEFAULT_BASE, model, messages, json, temperature, onDelta, signal } = opts;
+  const { apiKey, baseUrl = DEFAULT_BASE, model, messages, json, temperature, maxTokens, onDelta, signal } = opts;
   if (!apiKey) throw new DeepSeekError('还没有填 DeepSeek API Key。', 0);
   const stream = typeof onDelta === 'function';
   const body = { model, messages, stream };
   if (temperature != null) body.temperature = temperature;
+  if (maxTokens != null) body.max_tokens = maxTokens;
   if (json) body.response_format = { type: 'json_object' };
   if (stream) body.stream_options = { include_usage: true };
 

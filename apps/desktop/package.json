@@ -1,7 +1,7 @@
 {
   "name": "deepseek-daughter-desktop",
   "productName": "大肥鱼",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "大肥鱼：住在你电脑里的 AI 女孩，由 DeepSeek 驱动",
   "license": "Apache-2.0",
   "private": true,
@@ -9,12 +9,20 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test \"test/*.test.js\"",
-    "dist": "electron-builder --win portable"
+    "eval": "node eval/run.js",
+    "eval:strict": "node eval/run.js --strict",
+    "simulate": "node eval/simulate.js 7 --strict",
+    "shots": "node scripts/shots.js",
+    "dist": "electron-builder --win portable",
+    "e2e": "node scripts/e2e.js"
   },
   "devDependencies": {
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
     "three": "^0.170.0"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "build": {
     "appId": "io.github.shilaoban666.dafeiyu",
@@ -26,6 +34,8 @@
     },
     "files": [
       "src/**/*",
+      "config/**/*",
+      "assets/**/*",
       "package.json",
       "!src/**/*.map"
     ],

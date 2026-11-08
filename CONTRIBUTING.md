@@ -26,6 +26,7 @@ npm test
 
 - 本项目是 Apache-2.0。不要把 AGPL、非商用（如 PolyForm Noncommercial）许可的代码复制进来，只能参考设计。
 - 素材只收原创，或 CC0、CC-BY、OFL 许可的；别人的作品（包括风格参考图）不放进仓库。
+- 唯一的例外是 `apps/desktop/assets/cortex/` 的皮层数据（CC BY-SA 3.0），署名见该目录。
 - 引入新的 DSH 社区插件前，按设计文档第 4 节的“五关”审核：许可证、能否让生命核心接管回复、默认权限、DSH 版本兼容、维护情况。
 
 ## 安全

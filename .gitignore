@@ -8,3 +8,13 @@ dist/
 out/
 .env
 *.log
+.shots/
+.shots-data/
+.testdata/
+
+# 教材等本地学习资料（有版权，不入库）
+docs/study/
+
+# 本地工具配置
+.claude/
+.superpowers/

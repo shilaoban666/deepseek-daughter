@@ -10,65 +10,20 @@
   <div class="app">
     <!-- 左侧导航 -->
     <nav class="rail">
-      <div class="logo" title="大肥鱼">
+      <div class="logo">
         <svg viewBox="0 0 40 40" aria-hidden="true"><use href="#whale"/></svg>
         <span>大肥鱼</span>
       </div>
-      <!-- 界面 1「动画」暂不展示：<button data-view="anim"> -->
-      <button class="navbtn active" data-view="brain"><i>◎</i><span>思考记忆</span></button>
-      <button class="navbtn" data-view="life"><i>♡</i><span>生命状态</span></button>
-      <button class="navbtn" data-view="links"><i>⌁</i><span>链接</span></button>
+      <div id="navList"></div>
       <div class="rail-foot">
         <div class="pulse" id="railPulse"></div>
         <small id="railStatus">在线</small>
       </div>
     </nav>
 
-    <!-- 主区域 -->
     <main class="views">
-      <!-- 2. 思考记忆 -->
-      <section class="view active" id="view-brain">
-        <div class="brain-stage">
-          <canvas id="brainCanvas"></canvas>
-          <div class="brain-top">
-            <div class="seg"><button class="on" data-brainmode="holo">3D 全息</button><button data-brainmode="regions">脑区标注</button></div>
-          </div>
-          <div class="brain-hud-left">
-            <div class="hud-title">思考状态</div>
-            <div class="think-state" id="thinkState">—</div>
-            <div class="mini-pad" id="padText">—</div>
-            <div class="hud-title mt">想法队列</div>
-            <ul class="thoughts" id="thoughtList"></ul>
-          </div>
-          <div class="tooltip" id="brainTip" hidden></div>
-          <div class="brain-bottom">
-            <button data-brainact="flow">暂停流动</button>
-            <button data-brainact="spin" class="on">转动视角</button>
-            <button data-brainact="reset">重置视角</button>
-            <button data-brainact="labels">显示标注</button>
-            <button data-brainact="immersive">沉浸展示</button>
-          </div>
-        </div>
-        <aside class="mem-panel">
-          <div class="tabs" id="memTabs">
-            <button class="on" data-tab="layers">记忆分层</button>
-            <button data-tab="persona">人格</button>
-            <button data-tab="modes">思考模式</button>
-            <button data-tab="diary">日记</button>
-          </div>
-          <div class="tabbody" id="memBody"></div>
-        </aside>
-      </section>
-
-      <!-- 3. 生命状态 -->
-      <section class="view" id="view-life">
-        <div class="dash" id="dash"></div>
-      </section>
-
-      <!-- 4. 链接 -->
-      <section class="view" id="view-links">
-        <div class="links" id="links"></div>
-      </section>
+      <div class="topbar"><b id="viewTitle"></b><div class="subtabs" id="subtabs"></div></div>
+      <div class="page" id="page"></div>
     </main>
 
     <!-- 右侧聊天 -->
@@ -95,6 +50,22 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
+
+  <!-- 3D 画布只创建一次，不用时停在这里 -->
+  <div id="glPark" hidden>
+    <div id="stage3d">
+      <canvas id="brainCanvas"></canvas>
+      <div class="tooltip" id="brainTip" hidden></div>
+      <div class="brain-bottom">
+        <button data-brainact="flow">暂停流动</button>
+        <button data-brainact="spin" class="on">转动视角</button>
+        <button data-brainact="reset">重置视角</button>
+        <button data-brainact="labels">显示标注</button>
+        <button data-brainact="immersive">沉浸展示</button>
+      </div>
+    </div>
+    <canvas id="whaleCanvas" title="拖动旋转，点一下做动作"></canvas>
+  </div>
 
   <!-- 鲸鱼图标（原创矢量） -->
   <svg width="0" height="0" style="position:absolute">
