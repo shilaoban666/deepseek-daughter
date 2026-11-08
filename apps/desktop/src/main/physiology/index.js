@@ -42,6 +42,10 @@ function step(b, s, dtMin, now, events, { padOf }) {
   for (const e of events) {
     if (e.type === 'woken') reflex.fire(b.phys, 'startle', now);
   }
+  // 困意上来时打个哈欠，只在变困的那一刻
+  const r = b.phys.reflex;
+  if (b.nt.melatonin > 60 && !r.sleepy) { r.sleepy = true; reflex.fire(b.phys, 'yawn', now); }
+  else if (b.nt.melatonin < 50) r.sleepy = false;
 
   const glucose = H.assess('glucose', H.glucoseMmol(b.glucose)).status;
   if (glucose === 'low' && before.glucose !== 'low') H.addCause(b, { at: now, from: '空腹太久', to: 'glucose', text: '肝糖原用完，血糖下降' });

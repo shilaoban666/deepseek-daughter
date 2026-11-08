@@ -14,6 +14,8 @@ const consolidate = require('./consolidate');
 const { Backup } = require('./backup');
 const { buildMessages, nameOf } = require('./persona');
 const physiology = require('./physiology');
+const slang = require('./slang');
+const anniversary = require('./anniversary');
 const { report } = require('./physiology/report');
 const link = require('./physiology/memory-link');
 const { speechState } = require('./speech');
@@ -51,6 +53,8 @@ class Daughter extends EventEmitter {
     this.diary = store.load('diary', []);
     this.usage = store.load('usage', {});
     this.vitals = store.load('vitals', []);
+    this.slang = store.load('slang', []);
+    this.anniversaries = store.load('anniversaries', []);
     this.immune = store.load('immune', { level: 0, fever: false, at: 0, lastThreat: null, history: [] });
     this.backup = dataDir ? new Backup({ dir: dataDir, now: this.now }) : null;
     this.lastBackup = null;
@@ -146,7 +150,7 @@ class Daughter extends EventEmitter {
   memoryPayload() {
     const stats = this.memory.stats();
     return {
-      records: this.memory.toJSON(),
+      records: this.memory.toJSON().map((r) => ({ ...r, stage: memory.memoryStage(r, this.now()) })),
       stats,
       conflicts: this.memory.conflicts,
       layers: memory.LAYERS,
@@ -155,11 +159,56 @@ class Daughter extends EventEmitter {
     };
   }
 
+  /** 「我们」板块：黑话、纪念日、关系 */
+  usPayload() {
+    const now = this.now();
+    const first = this.profile?.createdAt || this.history[0]?.at || now;
+    const start = new Date(first);
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const items = [{ id: 'first-meet', title: '第一次见面', date: `${start.getFullYear()}-${pad2(start.getMonth() + 1)}-${pad2(start.getDate())}`, auto: true }, ...this.anniversaries];
+    return {
+      slang: this.slang,
+      anniversaries: anniversary.upcoming(items, now, 366),
+      relation: anniversary.relation({
+        days: this.daysWithHer(),
+        messages: this.history.filter((m) => m.role === 'user').length,
+        memories: this.memory.stats().active,
+        proactive: this.history.filter((m) => m.proactive).length,
+      }),
+    };
+  }
+
+  addAnniversary({ title, date }) {
+    if (!String(title || '').trim() || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return this.usPayload();
+    this.anniversaries.push({ id: `an-${this.now()}`, title: String(title).trim().slice(0, 30), date });
+    this.persist();
+    return this.usPayload();
+  }
+
+  removeAnniversary(id) {
+    this.anniversaries = this.anniversaries.filter((x) => x.id !== id);
+    this.persist();
+    return this.usPayload();
+  }
+
+  removeSlang(term) {
+    this.slang = this.slang.filter((x) => x.term !== term);
+    this.persist();
+    return this.usPayload();
+  }
+
+  markFalsePositive() {
+    physiology.lymph.markFalsePositive(this.body.phys);
+    this.persist();
+    return this.vitalsSnapshot();
+  }
+
   snapshot() {
     return {
       ...this.vitalsSnapshot(),
       history: this.history.slice(-200),
       memory: this.memoryPayload(),
+      us: this.usPayload(),
       profile: this.profile,
       diary: this.diary.slice(-30),
       meta: {
@@ -188,6 +237,8 @@ class Daughter extends EventEmitter {
     this.store.save('profile', this.profile);
     this.store.save('diary', this.diary);
     this.store.save('immune', this.immune);
+    this.store.save('slang', this.slang);
+    this.store.save('anniversaries', this.anniversaries);
   }
 
   addUsage(u) {
@@ -237,6 +288,7 @@ class Daughter extends EventEmitter {
       cortisol: Math.round(this.body.nt.cortisol),
       oxytocin: Math.round(this.body.nt.oxytocin),
       urge: this.urges?.top?.value || 0,
+      hr: Math.round(this.body.phys.vitals.heartRate),
     });
     if (this.vitals.length > VITALS_MAX) this.vitals.splice(0, this.vitals.length - VITALS_MAX);
   }
@@ -282,7 +334,8 @@ class Daughter extends EventEmitter {
       this.runBackup();
     }
 
-    const reason = life.proactiveReason(this.state, this.now(), { states: this.mind().report.states });
+    const today = this.usPayload().anniversaries.find((x) => x.daysLeft === 0);
+    const reason = life.proactiveReason(this.state, this.now(), { states: this.mind().report.states, special: today ? `今天是「${today.title}」，你想起来了` : undefined });
     const social = this.urges?.urges?.social?.value ?? 0;
     if (reason && !this.busy && this.getSettings().apiKey && this.urges?.top?.id === 'social' && social >= config.get().drives.threshold) {
       await this.speakFirst(reason).catch((err) => this.emit('error', err));
@@ -365,6 +418,7 @@ class Daughter extends EventEmitter {
       if (found.items.length) this.memory.recall(found.items.map((m) => m.id));
       link.afterRecall(found.items, this.state, this.body, now);
       this.reactReflex(text, now);
+      this.slang = slang.observe(this.slang, text, now);
       const speech = speechState(this.body, this.state, body.pad(this.body, this.state), { care: scan.care });
 
       const careNote = scan.care ? `TA 现在的情绪可能很不好。先关心 TA，别急着讲道理；可以温和地提醒：${immune.CARE_TEXT}` : undefined;
@@ -374,6 +428,7 @@ class Daughter extends EventEmitter {
         confident: found.confident,
         lastUserAt: prevUserAt,
         speech,
+        slang: slang.forPrompt(this.slang, text),
       });
 
       const id = `a-${now}`;
@@ -493,6 +548,7 @@ class Daughter extends EventEmitter {
       if (existing && !force && reason === 'sleep') return { ok: true, skipped: true, reason: '今天已经写过日记了' };
       const call = s.apiKey ? (m, o) => this.call(m, o) : null;
       const res = await consolidate.consolidate({
+        quality: link.sleepQuality(this.body, this.state),
         bank: this.memory,
         profile: this.profile,
         call,
@@ -502,6 +558,13 @@ class Daughter extends EventEmitter {
         name: nameOf(s),
         force: force || reason !== 'sleep',
       });
+      const ph = this.body.phys.immune.stats;
+      ph.stability += res.cleaned || 0;
+      ph.surveillance += res.conflicts || 0;
+      immune.sweepMemory(this.memory, this.body.phys, now);
+      for (const x of res.slang || []) this.slang = slang.add(this.slang, { ...x, at: now });
+      this.slang = slang.decay(this.slang, now);
+      this.emit('us', this.usPayload());
       if (res.diary) {
         const item = { date, text: res.diary, at: now };
         const i = this.diary.findIndex((d) => d.date === date);
@@ -577,6 +640,7 @@ class Daughter extends EventEmitter {
   forget(id) {
     const r = this.memory.archive(String(id));
     if (r) {
+      r.meta = { ...r.meta, archivedBy: 'owner' };
       this.persist();
       this.emit('memory', this.memoryPayload());
     }
@@ -584,8 +648,10 @@ class Daughter extends EventEmitter {
   }
 
   restoreMemory(id) {
+    const wasForgotten = this.memory.get(String(id))?.meta?.archivedBy !== 'owner';
     const r = this.memory.restore(String(id));
     if (r) {
+      if (wasForgotten) physiology.lymph.markAutoimmune(this.body.phys); // 不是主人让她忘的，算误伤
       this.persist();
       this.emit('memory', this.memoryPayload());
     }

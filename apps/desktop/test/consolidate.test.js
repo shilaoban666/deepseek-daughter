@@ -151,3 +151,13 @@ test('备份：每天备份一次，只留最近几天，数据目录里的 json
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('整理记忆时会报告清理了多少（免疫自稳）', async () => {
+  const bank = seedBank();
+  bank.add({ layer: 'semantic', text: '小明最喜欢的水果是草莓和蓝莓', importance: 0.5, source: { kind: 'owner' } });
+  const first = bank.records[bank.records.length - 1];
+  bank.records.push({ ...structuredClone(first), id: 'dup' }); // 相同内容直接放进库，add 会把重复的合并掉
+  const profile = persona.initialProfile({ now: NOW - DAY });
+  const res = await consolidate.consolidate({ bank, profile, call: null, now: NOW, date: '2026-11-04', force: true });
+  assert.ok(res.cleaned >= 1, `cleaned=${res.cleaned}`);
+});

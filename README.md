@@ -43,7 +43,7 @@ npm install
 npm start
 ```
 
-第一次打开后，去「链接」页给她取个名字，填上 Key，她就能说话了。Key 用系统加密只存在本机。
+第一次打开后，去「设置」页给她取个名字，填上 Key，她就能说话了。Key 用系统加密只存在本机。
 
 **没有 Key 也想看看流程？** 仓库带了一个假 DeepSeek：
 
@@ -61,7 +61,7 @@ npm start
 **想截图 / 看面板效果？**
 
 ```bash
-npm run shots            # 三个界面 + 记忆页四个标签，输出到 apps/desktop/.shots
+npm run shots            # 24 个页面逐个截图，输出到 apps/desktop/.shots
 node scripts/seed.js     # 往截图用的临时存档里塞一份演示数据
 ```
 
@@ -81,7 +81,8 @@ node scripts/seed.js     # 往截图用的临时存档里塞一份演示数据
 
 ```bash
 cd apps/desktop
-npm test            # 39 个单元/端到端测试，不需要网络
+npm test            # 单元测试，不需要网络
+npm run e2e         # 启动真实应用，走完 24 个页面、聊天、身心闭环和性能检查
 npm run eval        # 记忆召回评估集：recall@5、MRR、检索延迟
 npm run simulate    # 模拟时钟快进 7 天，检查吃饭、睡觉、想法分布、主动找人的克制
 ```
@@ -128,7 +129,9 @@ apps/desktop/
 │   ├── backup.js            每日备份
 │   ├── daughter.js          把上面这些串起来
 │   └── main.js / preload.js Electron 主进程与 IPC
-├── src/renderer/            3D 大脑、生命状态、链接页、聊天
+├── src/main/physiology/     内环境、激素、自主神经、反射、免疫、身心闭环
+├── src/renderer/views/      八个板块的页面
+├── src/renderer/            两级导航、3D 大脑、意识海、3D 形象、聊天
 ├── eval/                    记忆召回和驱力模拟
 └── test/                    单元与端到端测试
 ```

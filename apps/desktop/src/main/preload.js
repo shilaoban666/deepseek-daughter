@@ -39,4 +39,9 @@ contextBridge.exposeInMainWorld('fish', {
   onThought: on('thought'),
   onDiary: on('diary'),
   onNotice: on('notice'),
+  onUs: on('us'),
+  addAnniversary: (x) => ipcRenderer.invoke('add-anniversary', x),
+  removeAnniversary: (id) => ipcRenderer.invoke('remove-anniversary', id),
+  removeSlang: (term) => ipcRenderer.invoke('remove-slang', term),
+  markFalsePositive: () => ipcRenderer.invoke('mark-false-positive'),
 });

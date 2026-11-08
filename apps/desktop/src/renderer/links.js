@@ -1,8 +1,8 @@
-// 链接页：她和互联网各处的连接。现在只有 DeepSeek 是真接通的，其余平台标明在哪个阶段接入。
+// 设置页：DeepSeek、名字、备份。平台列表 PLATFORMS 给「发现探索」用。
 
 import { esc } from './util.js';
 
-const SOON = [
+export const PLATFORMS = [
   { name: 'QQ', color: '#1d9bf0', mark: 'Q', stage: '阶段 3', desc: '通过 OneBot（NapCat / LLOneBot）住进 QQ：私聊、群聊、主动找你。', field: { key: 'onebotUrl', label: 'OneBot WebSocket 地址', ph: 'ws://127.0.0.1:3001' } },
   { name: '微信', color: '#07c160', mark: '微', stage: '阶段 3', desc: '在微信里和你聊天、发朋友圈评论（需要你同意才发）。' },
   { name: 'B 站', color: '#fb7299', mark: 'B', stage: '阶段 4', desc: '自己刷视频、看字幕“吃饭”，把看到的有意思的东西讲给你听。' },
@@ -30,8 +30,7 @@ export function renderLinks(root, S, actions) {
   const modelKnown = MODELS.some(([v]) => v === st.model);
 
   root.innerHTML = `
-    <div class="intro"><h2>链接</h2>她和互联网各处的连接。现在接通的是 DeepSeek（她的大脑）；QQ、微信和内容平台会按执行计划逐个接入。</div>
-
+    
     <div class="card plat">
       <div class="plat-head"><div class="plat-icon" style="background:linear-gradient(135deg,#4d6bfe,#2a3fb0)">D</div>
         <div><b>DeepSeek</b><small>她的大脑 · 每次思考都会调用</small></div>${status}</div>
@@ -68,17 +67,7 @@ export function renderLinks(root, S, actions) {
         <button class="link" id="lk-backups">查看备份</button>
       </div>
       ${backups && backups.length ? `<ul class="intake-list">${backups.map((b) => `<li><span class="mono">${esc(b.day)}</span><span>${b.files} 个文件</span><b>${(b.bytes / 1024).toFixed(1)} KB</b></li>`).join('')}</ul>` : ''}
-    </div>
-
-    ${SOON.map(
-      (p) => `
-    <div class="card plat disabled">
-      <div class="plat-head"><div class="plat-icon" style="background:${p.color}">${esc(p.mark)}</div>
-        <div><b>${esc(p.name)}</b><small>${esc(p.stage)}接入</small></div><span class="status soon">即将支持</span></div>
-      <p>${esc(p.desc)}</p>
-      ${p.field ? `<label class="field">${esc(p.field.label)}<input data-key="${p.field.key}" value="${esc(st[p.field.key] || '')}" placeholder="${esc(p.field.ph)}"></label><div class="row"><button class="ghost" data-save="${p.field.key}">先保存地址</button></div>` : ''}
-    </div>`,
-    ).join('')}`;
+    </div>`;
 
   const q = (s) => root.querySelector(s);
   q('#lk-save').addEventListener('click', () => {
@@ -95,10 +84,4 @@ export function renderLinks(root, S, actions) {
   q('#lk-consolidate').addEventListener('click', () => actions.consolidate());
   q('#lk-backup').addEventListener('click', () => actions.backup());
   q('#lk-backups').addEventListener('click', () => actions.loadBackups());
-  root.querySelectorAll('[data-save]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const k = b.dataset.save;
-      actions.save({ [k]: root.querySelector(`[data-key="${k}"]`).value });
-    }),
-  );
 }

@@ -158,10 +158,10 @@ export function createWhale(canvas) {
   });
 
   // ---------- 动画 ----------
-  let lastDraw = 0, blinkAt = 2, nextSpout = 9;
+  let lastDraw = 0, blinkAt = 2, nextSpout = 9, raf = 0, running = true;
   function frame(nowMs) {
-    requestAnimationFrame(frame);
-    if (nowMs - lastDraw < 30 || canvas.offsetParent === null || document.hidden) return;
+    raf = requestAnimationFrame(frame);
+    if (nowMs - lastDraw < 30 || document.hidden) return;
     lastDraw = nowMs;
     const t = nowMs / 1000;
     const speed = asleep ? 0.45 : 1;
@@ -211,10 +211,12 @@ export function createWhale(canvas) {
     }
     renderer.render(scene, camera);
   }
-  requestAnimationFrame(frame);
+  raf = requestAnimationFrame(frame);
 
   return {
     act,
+    pause() { running = false; cancelAnimationFrame(raf); },
+    resume() { if (!running) { running = true; raf = requestAnimationFrame(frame); } },
     setState(s) { asleep = !!s.asleep; },
   };
 }

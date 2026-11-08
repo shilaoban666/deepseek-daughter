@@ -25,7 +25,7 @@ const child = spawn(electron, args, {
     ...env,
     DFY_SHOT: out,
     DFY_DATA_DIR: data,
-    DFY_SHOT_VIEWS: process.env.DFY_SHOT_VIEWS || 'brain,life,links',
+    DFY_SHOT_VIEWS: process.env.DFY_SHOT_VIEWS || '',
     DFY_SHOT_SAY: process.env.DFY_SHOT_SAY || '',
   },
   stdio: 'inherit',

@@ -153,6 +153,7 @@ function stepBody(prevBody, prevLife, dtMin, now, events = [], rnd = Math.random
   if (!asleep && b.hydration < c.life.water.low) {
     b.hydration = clamp(b.hydration + c.life.water.addPercent);
     logIntake(b, now, '喝', pick(['温水', '柠檬水', '乌龙茶', '牛奶'], rnd), '口渴了');
+    physiology.reflex.fire(b.phys, 'thirst', now);
   }
 
   // 下午茶：心情一般又醒着，15–17 点吃个布丁（每天一次）

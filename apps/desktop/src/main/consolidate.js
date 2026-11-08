@@ -44,6 +44,7 @@ function consolidationMessages({ episodes, profile, userName, name, facts, date 
 - 事实用一句完整的话，主语写清楚：关于${who}的用“${who}”，关于你的用“我”。重复的事不要再写。
 - 会过期的事（在准备考试、这周在出差）用 validDays 标出大概还能管几天，否则填 null。
 - 价值观要真的从经历里长出来，不要写口号。
+- slang 只写你们之间反复出现、外人听不懂的说法，没有就返回空数组。
 - 没有东西可写就返回空数组；diary 每天都要写。
 只输出 JSON：
 {"semantic":[{"text":"...","importance":3,"entities":["..."],"source":"owner","validDays":null}],
@@ -54,6 +55,7 @@ function consolidationMessages({ episodes, profile, userName, name, facts, date 
  "values":[{"text":"..."}],
  "goals":[{"text":"...","progress":0.6}],
  "contradictions":[{"a":"旧的说法","b":"新的说法"}],
+ "slang":[{"term":"你们之间的专属说法","meaning":"它的意思","example":"原话"}],
  "diary":"今天的日记"}
 其中 trait 只能是 ${TRAIT_IDS.join(' / ')}；importance 是 1-5；delta 是正负 1 以内的数。`,
     },
@@ -163,6 +165,7 @@ async function consolidate(opts) {
   }
 
   // 7. 大模型自己发现的矛盾
+  result.slang = Array.isArray(data.slang) ? data.slang : [];
   for (const c of Array.isArray(data.contradictions) ? data.contradictions : []) {
     const a = bank.records.find((r) => !r.archived && r.text.includes(String(c?.a || '').slice(0, 8)) && c?.a);
     const b = bank.records.find((r) => !r.archived && r.text.includes(String(c?.b || '').slice(0, 8)) && c?.b);
@@ -177,12 +180,20 @@ async function consolidate(opts) {
 
   // 8. 回放一次就加强一次；整理完顺手合并相似的、衰减该忘的
   bank.recall(episodes.map((e) => e.id));
-  bank.mergeSimilar(now);
-  bank.decay(now);
+  result.cleaned = tidy(bank, now);
   profile.lastConsolidatedAt = now;
   profile.updatedAt = now;
   result.diary = typeof data.diary === 'string' && data.diary.trim() ? data.diary.trim() : null;
   return result;
+}
+
+/** 合并重复、淡化旧记忆，返回清理掉多少条（免疫自稳） */
+function tidy(bank, now) {
+  const active = () => bank.records.filter((r) => !r.archived).length;
+  const before = active();
+  bank.mergeSimilar(now);
+  bank.decay(now);
+  return before - active();
 }
 
 /** 没有 API Key 时的本地整理：只更新兴趣、强化记忆、合并重复 */
@@ -193,10 +204,9 @@ function localConsolidate({ bank, profile, episodes, now = Date.now() }) {
   for (const [topic, n] of top) personaModel.touchInterest(profile, topic, Math.min(6, n), now);
   personaModel.decayInterests(profile, now);
   bank.recall(episodes.map((e) => e.id));
-  bank.mergeSimilar(now);
-  bank.decay(now);
+  const cleaned = tidy(bank, now);
   profile.lastConsolidatedAt = now;
-  return { ok: true, local: true, episodes: episodes.length, interests: top.length, semantic: 0, reflections: 0, growth: 0, conflicts: 0, diary: null };
+  return { ok: true, local: true, cleaned, episodes: episodes.length, interests: top.length, semantic: 0, reflections: 0, growth: 0, conflicts: 0, diary: null };
 }
 
 module.exports = { consolidate, localConsolidate, consolidationMessages, dateKey };

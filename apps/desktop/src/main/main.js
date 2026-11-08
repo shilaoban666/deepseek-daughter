@@ -142,25 +142,12 @@ if (!app.requestSingleInstanceLock()) {
       console.log('[shot] action', act, JSON.stringify(r).slice(0, 200));
       await wait(1500);
     }
-    for (const v of (process.env.DFY_SHOT_VIEWS || 'brain,life,links').split(',')) {
-      await win.webContents.executeJavaScript(`window.__setView && window.__setView(${JSON.stringify(v)})`);
-      await wait(2500);
-      if (v === 'brain') {
-        // 先截一张全息大脑，再截四个标签
-        {
-          const img = await win.webContents.capturePage();
-          fs.writeFileSync(path.join(dir, `${v}.png`), img.toPNG());
-        }
-        for (const tab of ['layers', 'persona', 'regions', 'diary']) {
-          await win.webContents.executeJavaScript(`document.querySelector('#memTabs button[data-tab="${tab}"]')?.click()`);
-          await wait(900);
-          const img = await win.webContents.capturePage();
-          fs.writeFileSync(path.join(dir, `${v}-${tab}.png`), img.toPNG());
-        }
-      } else {
-        const img = await win.webContents.capturePage();
-        fs.writeFileSync(path.join(dir, `${v}.png`), img.toPNG());
-      }
+    const list = process.env.DFY_SHOT_VIEWS ? process.env.DFY_SHOT_VIEWS.split(',') : await win.webContents.executeJavaScript('window.__routes()');
+    for (const r of list) {
+      await win.webContents.executeJavaScript(`window.__go(${JSON.stringify(r)})`);
+      await wait(Number(process.env.DFY_SHOT_WAIT) || 1500);
+      const img = await win.webContents.capturePage();
+      fs.writeFileSync(path.join(dir, `${r.replace('/', '-')}.png`), img.toPNG());
     }
     app.quit();
   }
@@ -186,6 +173,7 @@ if (!app.requestSingleInstanceLock()) {
     daughter.on('thought', (thought) => send('thought', thought));
     daughter.on('diary', (diary) => send('diary', diary.slice(-30)));
     daughter.on('notice', (text) => send('notice', text));
+    daughter.on('us', (payload) => send('us', payload));
     daughter.on('error', (err) => {
       console.error('[daughter]', err);
       send('notice', err.message);
@@ -225,6 +213,10 @@ if (!app.requestSingleInstanceLock()) {
       const read = (f) => fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'cortex', f));
       return { lh: read('lh.lod.bin'), rh: read('rh.lod.bin') };
     });
+    ipcMain.handle('add-anniversary', (_e, x) => daughter.addAnniversary(x));
+    ipcMain.handle('remove-anniversary', (_e, id) => daughter.removeAnniversary(String(id)));
+    ipcMain.handle('remove-slang', (_e, term) => daughter.removeSlang(String(term)));
+    ipcMain.handle('mark-false-positive', () => daughter.markFalsePositive());
     ipcMain.handle('open-external', (_e, url) => {
       if (/^https:\/\/platform\.deepseek\.com\//.test(url)) shell.openExternal(url);
     });

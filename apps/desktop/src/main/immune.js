@@ -99,6 +99,24 @@ function react(body, immuneState, scanResult, now = Date.now()) {
   return { body: b, immune: st };
 }
 
+/**
+ * 细胞免疫：已经混进记忆的污染内容。只查来自外部的记忆，主人的话不动。
+ * @returns {number} 清理了多少条
+ */
+function sweepMemory(bank, phys, now = Date.now()) {
+  let cleaned = 0;
+  for (const r of bank.records) {
+    if (r.archived || !['stranger', 'platform', 'content'].includes(r.source?.kind)) continue;
+    const found = scan(r.text, { fromOwner: false });
+    if (!found.blocked) continue;
+    bank.archive(r.id);
+    lymph.recordDefense(phys, { ...found, inMemory: true }, now);
+    phys.immune.stats.surveillance += 1;
+    cleaned += 1;
+  }
+  return cleaned;
+}
+
 /** 恢复：免疫慢慢长回来，退烧 */
 function recover(body, immuneState, now = Date.now()) {
   const st = { ...(immuneState || {}), history: immuneState?.history || [] };
@@ -126,4 +144,4 @@ function boundaryText(profile) {
   return `【永远有效的边界】${bounds.join('；')}。`;
 }
 
-module.exports = { scan, wrapAsData, react, recover, statusText, boundaryText, SAFE_REPLY, CARE_TEXT, HOTLINE, RULES };
+module.exports = { sweepMemory, scan, wrapAsData, react, recover, statusText, boundaryText, SAFE_REPLY, CARE_TEXT, HOTLINE, RULES };

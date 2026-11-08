@@ -99,6 +99,7 @@ function buildMessages(ctx) {
     confident = true,
     budget,
     speech,
+    slang,
   } = ctx;
   const NAME = nameOf(settings);
   const who = settings.userName ? `养你的人叫${settings.userName}` : '养你的人还没告诉你 TA 叫什么';
@@ -122,6 +123,7 @@ function buildMessages(ctx) {
   if (profile) sections.push(immune.boundaryText(profile));
 
   sections.push(...memoryBlocks(memories, { confident }));
+  if (slang?.length) sections.push('【你们之间的话】\n' + slang.map((x) => `- ${x.term}：${x.meaning}`).join('\n'));
 
   if (lastUserAt) sections.push(`【上次聊天】距离 TA 上次找你过去了 ${sinceText(now - lastUserAt)}。`);
   else sections.push('【上次聊天】这是 TA 第一次和你说话。');

@@ -592,7 +592,8 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
   const clock = new THREE.Clock();
   let lastDraw = 0, perfSum = 0, perfN = 0;
   let mode = 'brain';
-  let running = true;
+  let running = true, raf = 0;
+  let focused = null; // 按功能筛选时，只突出这些脑区
   let activity = 0.3;
   const proj = new THREE.Vector3();
   const facing = new THREE.Vector3(), toCamera = new THREE.Vector3();
@@ -624,7 +625,7 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
 
   function frame() {
     if (!running) return;
-    requestAnimationFrame(frame);
+    raf = requestAnimationFrame(frame);
     // 限帧：平时 30 帧，拖动时 60 帧，窗口不在前台时 15 帧。高刷屏上省得最多
     const now = performance.now();
     const budget = dragging ? 16 : document.hasFocus() ? 33 : 66;
@@ -653,8 +654,10 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
       const n = regionNodes[id];
       n.act += (n.target - n.act) * Math.min(1, dt * 3);
       const pulse = 1 + Math.sin(t * 3 + n.sprite.position.x * 5) * 0.08;
-      n.sprite.scale.setScalar((0.06 + n.act * 0.16) * pulse);
-      n.sprite.material.opacity = 0.2 + n.act * 0.55;
+      const dim = focused && !focused.has(id) ? 0.15 : 1;
+      const big = focused?.has(id) ? 1.8 : 1;
+      n.sprite.scale.setScalar((0.06 + n.act * 0.16) * pulse * big);
+      n.sprite.material.opacity = (0.2 + n.act * 0.55) * dim + (big > 1 ? 0.3 : 0);
       shared.uRegionAct.value[i] = n.act;
     });
 
@@ -757,7 +760,8 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
         labels.push({ id, el });
       }
     },
-    pause() { running = false; },
+    pause() { running = false; cancelAnimationFrame(raf); },
+    focusRegions(ids) { focused = ids ? new Set(ids) : null; },
     resume() {
       if (running) return;
       running = true;

@@ -781,7 +781,16 @@ function diaryMessages(date, dayMessages, userName, name = '小鲸鱼') {
   ];
 }
 
+/** 记忆四阶段：工作记忆是第一级，反复使用又存得够久的才进第三级 */
+function memoryStage(r, now = Date.now()) {
+  if (r.layer === 'working') return 'first';
+  if (r.layer === 'self') return 'third';
+  if ((r.recallCount || 0) >= 5 && now - r.at > 30 * DAY) return 'third';
+  return 'second';
+}
+
 module.exports = {
+  memoryStage,
   DAY,
   LAYERS,
   LAYER_NAMES,

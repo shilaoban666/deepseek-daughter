@@ -24,6 +24,7 @@ const CONSOLIDATION = JSON.stringify({
   values: [{ text: '陪伴不是一直说话，有时候只是留在旁边' }],
   goals: [{ text: '把那本小说读完', progress: 0.4 }],
   contradictions: [],
+  slang: [{ term: '布丁税', meaning: '帮了忙要请吃布丁', example: '今天的布丁税交了吗' }],
   diary: '今天小明加班到很晚，回来时话很少。我没多问，把布丁留给了他。',
 });
 
