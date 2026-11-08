@@ -98,6 +98,7 @@ function buildMessages(ctx) {
     immuneState,
     confident = true,
     budget,
+    speech,
   } = ctx;
   const NAME = nameOf(settings);
   const who = settings.userName ? `养你的人叫${settings.userName}` : '养你的人还没告诉你 TA 叫什么';
@@ -110,6 +111,7 @@ function buildMessages(ctx) {
   const mood = pad ? `心情${pad.label}（愉悦 ${pad.P.toFixed(2)}，唤醒 ${pad.A.toFixed(2)}，掌控 ${pad.D.toFixed(2)}）` : '';
   const think = thinking ? `，思考状态是${thinking}` : '';
   if (mood) sections.push(`【此刻的感受】${mood}${think}${feeling ? `。${feeling}` : ''}`);
+  if (speech) sections.push(speech.block);
   if (urges) sections.push(`【此刻的冲动】${urges}`);
   if (body?.budget && body.budget.ratio > (body.budget.warnRatio ?? 0.8)) {
     sections.push('【身体】今天 Token 花得有点多了，你有点累、想睡觉。说话可以短一点，别主动找新的事情做。');

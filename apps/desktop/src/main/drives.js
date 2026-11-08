@@ -82,6 +82,7 @@ function modulation(def, body, state) {
   if (def.id === 'curiosity') mod += (body.nt.dopamine - 40) / 150;
   if (def.id === 'physio') mod += (body.nt.cortisol - 30) / 200;
   if (def.id === 'expression') mod += (body.nt.acetylcholine - 40) / 250;
+  if (body.fever && def.id !== 'physio') mod -= 0.4; // 发烧时什么都不想做
   return clamp(mod, 0.5, 1.8);
 }
 

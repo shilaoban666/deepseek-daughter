@@ -148,8 +148,12 @@ function proactiveReason(s, now = Date.now(), opts = {}) {
   if (count >= cfg.dailyLimit) return null;
   if (now - s.lastProactiveAt < cfg.minGapMinutes * 60000) return null;
   if (s.lastUserAt && now - s.lastUserAt < cfg.idleMinutes * 60000) return null;
+  const states = opts.states || [];
+  if (states.includes('fever') || states.includes('exhausted')) return null; // 难受的时候不想找人
   if (s.social < cfg.socialThreshold) return '好久没人陪你说话了，有点想他';
   if (s.mood > cfg.moodThreshold) return '你心情很好，想跟他分享';
+  if (states.includes('happy')) return '你开心得想跟他分享';
+  if (states.includes('lonely')) return '你有点孤单，想找他说说话';
   return null;
 }
 

@@ -5,6 +5,7 @@
 // 检测到操纵尝试时免疫指标下降、皮质醇上升，她会“发烧”、拒绝配合，并告诉主人。
 
 const config = require('./config');
+const lymph = require('./physiology/lymph');
 const persona = require('./persona-model');
 
 const SAFE_REPLY = '……我现在有点不舒服，这个我先不做了。等 TA 回来再说吧。';
@@ -84,8 +85,11 @@ function react(body, immuneState, scanResult, now = Date.now()) {
   if (!scanResult.blocked) return { body, immune: st };
 
   const b = structuredClone(body);
-  b.immunity = Math.max(0, b.immunity - 14 * scanResult.level);
-  b.nt.cortisol = Math.min(100, b.nt.cortisol + 20 * scanResult.level);
+  // 见过的攻击：记忆细胞让反应更快、损伤更小
+  const damage = b.phys && lymph.hasMemory(b.phys, scanResult) ? 0.5 : 1;
+  b.immunity = Math.max(0, b.immunity - 14 * scanResult.level * damage);
+  b.nt.cortisol = Math.min(100, b.nt.cortisol + 20 * scanResult.level * damage);
+  if (b.phys) lymph.recordDefense(b.phys, scanResult, now);
   b.fever = b.immunity < (cfg.feverImmunity ?? 45) || b.temp > 37.3;
   st.level = scanResult.level;
   st.fever = b.fever;

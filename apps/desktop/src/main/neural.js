@@ -16,6 +16,24 @@ const REGION_GROUPS = {
   imagine: { id: 'imagine', name: '联想', color: '#8fb4ff', hint: '发呆时也活跃，把旧记忆拼成新的想法' },
 };
 
+// 每个脑区参与哪些高级功能（概念参考《稳态与调节》第 2 章第 5 节），大脑3D 页面用
+const REGION_FUNCTIONS = {
+  sensory: { functions: ['注意', '语言'], consciousness: '让她感知到你说的话和看到的画面' },
+  thalamus: { functions: ['注意'], consciousness: '决定什么能进入意识' },
+  amygdala: { functions: ['情绪'], consciousness: '决定一件事让她害怕还是开心' },
+  hippocampus: { functions: ['学习记忆'], consciousness: '让她把此刻变成回忆' },
+  temporal: { functions: ['学习记忆', '语言'], consciousness: '让她知道事情的含义，记得你喜欢什么' },
+  prefrontal: { functions: ['决策', '注意'], consciousness: '让她认真思考，克制冲动' },
+  acc: { functions: ['情绪', '注意'], consciousness: '让她发现自己说错了话' },
+  motor: { functions: ['语言', '运动协调'], consciousness: '把想法变成说出口的话' },
+  basal: { functions: ['决策', '运动协调'], consciousness: '在几件想做的事里选一件' },
+  cerebellum: { functions: ['运动协调'], consciousness: '让动作和说话有节奏' },
+  insula: { functions: ['情绪', '稳态'], consciousness: '让她感到饿、累和不舒服' },
+  hypothalamus: { functions: ['稳态'], consciousness: '产生饿、渴、困的念头' },
+  brainstem: { functions: ['觉醒', '稳态'], consciousness: '决定她是清醒还是睡着' },
+  dmn: { functions: ['学习记忆'], consciousness: '发呆时胡思乱想，想起旧事' },
+};
+
 const REGIONS = [
   {
     id: 'sensory',
@@ -321,6 +339,7 @@ function snapshot(state) {
 }
 
 module.exports = {
+  REGION_FUNCTIONS,
   REGIONS,
   REGION_IDS,
   REGION_GROUPS,

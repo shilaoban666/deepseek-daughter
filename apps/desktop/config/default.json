@@ -65,7 +65,18 @@
     }
   },
 
+  "physiology": {
+    "_comment": "内环境、激素、神经调节和身心闭环的参数",
+    "maxStepMinutes": 5,
+    "maxCatchUpMinutes": 720,
+    "liverRate": 0.01,
+    "snackCooldownMinutes": 60,
+    "conditionedHalfLifeDays": 14,
+    "loopGain": 1
+  },
+
   "memory": {
+    "moodCongruence": 0.08,
     "_comment": "六层记忆与五路混合检索（设计文档 §7）。五路权重之和建议为 1。",
     "weights": {
       "vector": 0.3,

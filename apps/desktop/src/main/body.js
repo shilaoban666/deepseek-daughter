@@ -5,17 +5,22 @@
 const { clamp, hourOf } = require('./life');
 const neural = require('./neural');
 const config = require('./config');
+const physiology = require('./physiology');
+const { initialPhys } = physiology.H;
+const { behavior } = physiology;
 
 const REGIONS = neural.REGIONS;
 
 const TRANSMITTERS = [
-  { id: 'dopamine', name: '多巴胺', color: '#f5c242' },
-  { id: 'oxytocin', name: '催产素', color: '#5fd4e8' },
-  { id: 'cortisol', name: '皮质醇', color: '#ef6f8e' },
-  { id: 'serotonin', name: '血清素', color: '#a98bff' },
-  { id: 'norepinephrine', name: '去甲肾上腺素', color: '#3ddc97' },
-  { id: 'acetylcholine', name: '乙酰胆碱', color: '#7fb2ff' },
-  { id: 'melatonin', name: '褪黑素', color: '#c9a7ff' },
+  { id: 'dopamine', name: '多巴胺', color: '#f5c242', kind: 'transmitter', effect: 'modulate', role: '想要、期待' },
+  { id: 'oxytocin', name: '催产素', color: '#5fd4e8', kind: 'hormone', role: '亲近、安心' },
+  { id: 'cortisol', name: '皮质醇', color: '#ef6f8e', kind: 'hormone', role: '压力' },
+  { id: 'serotonin', name: '血清素', color: '#a98bff', kind: 'transmitter', effect: 'modulate', role: '情绪稳定' },
+  { id: 'norepinephrine', name: '去甲肾上腺素', color: '#3ddc97', kind: 'transmitter', effect: 'modulate', role: '清醒、专注' },
+  { id: 'acetylcholine', name: '乙酰胆碱', color: '#7fb2ff', kind: 'transmitter', effect: 'excite', role: '记忆、学习' },
+  { id: 'glutamate', name: '谷氨酸', color: '#7dffb8', kind: 'transmitter', effect: 'excite', role: '主要的兴奋性递质' },
+  { id: 'gaba', name: 'GABA', color: '#9fd0ff', kind: 'transmitter', effect: 'inhibit', role: '主要的抑制性递质' },
+  { id: 'melatonin', name: '褪黑素', color: '#c9a7ff', kind: 'hormone', role: '困意' },
 ];
 
 const DRIVES = [
@@ -60,6 +65,8 @@ function initialBody(now = Date.now()) {
     signals: [],
     lastFired: [],
     drives,
+    phys: initialPhys(),
+    causes: [], // 因果记录，界面回答「为什么」用
     intake: [], // 摄取记录 [{at, kind, item, note}]
     thoughts: [], // 想法队列 [{at, drive, text}]
     lastSnack: '',
@@ -124,12 +131,21 @@ function stepBody(prevBody, prevLife, dtMin, now, events = [], rnd = Math.random
   }
 
   // ---- 消化：胃 → 小肠 → 血糖 → 饱腹 ----
-  const toIntestine = Math.min(b.stomach, digestion.stomachToIntestine * dtMin);
+  // 饿了会自己去找吃的
+  const statesNow = behavior.activeStates(b, s, pad(b, s));
+  if (behavior.shouldSnack(statesNow, s, now, b.stomach)) {
+    s.lastSnackAt = now;
+    b.stomach = clamp(b.stomach + 20);
+    logIntake(b, now, '吃', pick(MENU.零食, rnd), '饿了');
+    physiology.H.addCause(b, { at: now, from: '肚子饿', to: 'activity', text: '饿了，自己找了点吃的' });
+  }
+  const digestSpeed = b.phys.psych.chronic > 0 ? 0.85 : 1; // 长期压力让消化变慢
+  const toIntestine = Math.min(b.stomach, digestion.stomachToIntestine * digestSpeed * dtMin);
   b.stomach -= toIntestine;
   b.intestine = clamp(b.intestine + toIntestine);
   const absorbed = Math.min(b.intestine, digestion.intestineToGlucose * dtMin);
   b.intestine -= absorbed;
-  b.glucose = clamp(b.glucose + absorbed * 0.9 - (asleep ? digestion.glucoseBurnAsleep : digestion.glucoseBurnAwake) * dtMin);
+  b.glucose = clamp(b.glucose + absorbed * 0.9 - (asleep ? digestion.glucoseBurnAsleep : digestion.glucoseBurnAwake) * physiology.metabolicRate(b.phys) * dtMin);
   s.satiety = clamp(s.satiety + absorbed * digestion.satietyFromGlucose);
 
   // 喝水（规则行为）
@@ -155,7 +171,8 @@ function stepBody(prevBody, prevLife, dtMin, now, events = [], rnd = Math.random
     (s.social < stressCfg.lonelyBelow ? 30 : 0) +
     (s.energy < stressCfg.tiredBelow ? 15 : 0) +
     (b.hydration < stressCfg.thirstyBelow ? 10 : 0) +
-    (b.fever ? 20 : 0);
+    (b.fever ? 20 : 0) +
+    b.phys.psych.stress;
   const morningPeak = h >= 6.5 && h < 9.5 ? 25 : 0; // 皮质醇晨峰
   b.hpa.crh = approach(b.hpa.crh, clamp(15 + stress + morningPeak), dtMin, 20);
   b.hpa.acth = approach(b.hpa.acth, b.hpa.crh, dtMin, 30);
@@ -169,11 +186,13 @@ function stepBody(prevBody, prevLife, dtMin, now, events = [], rnd = Math.random
   b.nt.oxytocin = approach(b.nt.oxytocin, 20 + (s.social - 50) * 0.3, dtMin, 90);
   b.nt.norepinephrine = approach(b.nt.norepinephrine, asleep ? 8 : clamp(35 + s.energy * 0.2 - b.nt.melatonin * 0.2), dtMin, 30);
   b.nt.acetylcholine = approach(b.nt.acetylcholine, asleep ? 55 : 35, dtMin, 30);
+  b.nt.glutamate = approach(b.nt.glutamate, asleep ? 28 : clamp(38 + s.energy * 0.12), dtMin, 20);
+  b.nt.gaba = approach(b.nt.gaba, asleep ? 68 : clamp(52 - b.nt.norepinephrine * 0.1), dtMin, 20);
   for (const k of Object.keys(b.nt)) b.nt[k] = clamp(b.nt[k]);
 
   // 体温：昼夜节律 ± 0.3℃，免疫低时发烧
   b.temp = 36.5 + 0.3 * Math.sin(((h - 10) / 24) * 2 * Math.PI) + (b.immunity < 50 ? (50 - b.immunity) * 0.04 : 0);
-  const immunity = approach(b.immunity, c.body.immunityBaseline, dtMin, c.body.immunityRecoverHalfLifeMinutes);
+  const immunity = approach(b.immunity, c.body.immunityBaseline - b.phys.psych.chronic, dtMin, c.body.immunityRecoverHalfLifeMinutes);
   b.immunity = clamp(immunity);
   if (b.immunity > 70) b.fever = false;
 
@@ -187,6 +206,8 @@ function stepBody(prevBody, prevLife, dtMin, now, events = [], rnd = Math.random
       s.energy = clamp(s.energy - (ctx.budget.ratio - warn) * 12 * dtMin);
     }
   }
+
+  physiology.step(b, s, dtMin, now, events, { padOf: pad });
 
   // ---- 脑区：神经信号总线（设计文档 §4.1） ----
   b.brain = neural.normalizeState(b.brain);

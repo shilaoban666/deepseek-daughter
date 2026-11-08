@@ -13,6 +13,10 @@ const intent = require('./intent');
 const consolidate = require('./consolidate');
 const { Backup } = require('./backup');
 const { buildMessages, nameOf } = require('./persona');
+const physiology = require('./physiology');
+const { report } = require('./physiology/report');
+const link = require('./physiology/memory-link');
+const { speechState } = require('./speech');
 const deepseek = require('./deepseek');
 const config = require('./config');
 
@@ -72,6 +76,8 @@ class Daughter extends EventEmitter {
     b.drives = { ...base.drives, ...(saved.drives || {}) };
     b.regions = { ...base.regions, ...(saved.regions || {}) };
     b.brain = neural.normalizeState(saved.brain);
+    b.phys = physiology.H.hydratePhys(saved.phys);
+    b.causes = Array.isArray(saved.causes) ? saved.causes : [];
     b.intake = Array.isArray(saved.intake) ? saved.intake : [];
     b.thoughts = Array.isArray(saved.thoughts) ? saved.thoughts : [];
     return b;
@@ -107,6 +113,7 @@ class Daughter extends EventEmitter {
       urges: this.urges?.urges || {},
       topUrge: this.urges?.top || null,
       neuro: neural.snapshot(this.body.brain),
+      report: report(this.body, this.state, this.now()),
     };
   }
 
@@ -158,6 +165,10 @@ class Daughter extends EventEmitter {
       meta: {
         regions: body.REGIONS,
         regionGroups: neural.REGION_GROUPS,
+        regionFunctions: neural.REGION_FUNCTIONS,
+        hormones: physiology.HORMONES,
+        reflexes: physiology.reflex.REFLEXES,
+        reference: physiology.H.REFERENCE,
         connections: neural.CONNECTIONS,
         transmitters: body.TRANSMITTERS,
         drives: body.DRIVES,
@@ -241,11 +252,13 @@ class Daughter extends EventEmitter {
   /** 一条经历进情景记忆，带上当时的情绪和来源 */
   recordEpisode(text, { at = this.now(), importance = 0.3, source = { kind: 'self' }, tags = [], entities } = {}) {
     const pad = body.pad(this.body, this.state);
+    const bodyStates = physiology.behavior.activeStates(this.body, this.state, pad);
     return this.memory.add({
       layer: 'episodic',
       text,
       at,
-      importance,
+      importance: Math.min(1, importance * link.encodingFactor(this.body, pad, bodyStates)),
+      bodyStates,
       emotion: { P: Number(pad.P.toFixed(2)), A: Number(pad.A.toFixed(2)), D: Number(pad.D.toFixed(2)) },
       source,
       tags,
@@ -269,7 +282,7 @@ class Daughter extends EventEmitter {
       this.runBackup();
     }
 
-    const reason = life.proactiveReason(this.state, this.now());
+    const reason = life.proactiveReason(this.state, this.now(), { states: this.mind().report.states });
     const social = this.urges?.urges?.social?.value ?? 0;
     if (reason && !this.busy && this.getSettings().apiKey && this.urges?.top?.id === 'social' && social >= config.get().drives.threshold) {
       await this.speakFirst(reason).catch((err) => this.emit('error', err));
@@ -347,8 +360,12 @@ class Daughter extends EventEmitter {
         return msg;
       }
 
-      const found = this.memory.search(text, { now, limit: config.get().memory.retrievalLimit || 12 });
+      const pad = body.pad(this.body, this.state);
+      const found = this.memory.search(text, { now, limit: config.get().memory.retrievalLimit || 12, mood: pad.P });
       if (found.items.length) this.memory.recall(found.items.map((m) => m.id));
+      link.afterRecall(found.items, this.state, this.body, now);
+      this.reactReflex(text, now);
+      const speech = speechState(this.body, this.state, body.pad(this.body, this.state), { care: scan.care });
 
       const careNote = scan.care ? `TA 现在的情绪可能很不好。先关心 TA，别急着讲道理；可以温和地提醒：${immune.CARE_TEXT}` : undefined;
       const messages = buildMessages({
@@ -356,13 +373,14 @@ class Daughter extends EventEmitter {
         memories: found.items,
         confident: found.confident,
         lastUserAt: prevUserAt,
+        speech,
       });
 
       const id = `a-${now}`;
       this.emit('reply-start', id);
       let replyText;
       try {
-        replyText = await this.call(messages, { temperature: 1.1, onDelta: (d) => this.emit('reply-delta', id, d) });
+        replyText = await this.call(messages, { temperature: speech.temperature, maxTokens: speech.maxTokens ?? undefined, onDelta: (d) => this.emit('reply-delta', id, d) });
       } catch (err) {
         this.emit('reply-end', id, null, err.message);
         throw err;
@@ -385,6 +403,17 @@ class Daughter extends EventEmitter {
     });
   }
 
+  /** 听到熟悉的话，身体会先有反应：条件反射 */
+  reactReflex(text, now) {
+    const { reflex } = physiology;
+    if (/晚安/.test(text)) reflex.observePair(this.body.phys, '晚安', 'sleepy', now);
+    if (/吃饭|饭点/.test(text)) reflex.observePair(this.body.phys, '吃饭', 'happy', now);
+    for (const r of reflex.triggered(this.body.phys, text)) {
+      if (r === 'sleepy') this.body.nt.melatonin = Math.min(100, this.body.nt.melatonin + 10);
+      if (r === 'happy') this.body.nt.dopamine = Math.min(100, this.body.nt.dopamine + 6);
+    }
+  }
+
   /** 这句话值不值得记：越像“事件”和“关于 TA 的信息”，重要性越高 */
   episodicImportance(text, analysis) {
     let v = 0.25;
@@ -404,8 +433,9 @@ class Daughter extends EventEmitter {
       const top = this.body.thoughts[this.body.thoughts.length - 1];
       const extra = `【你现在想主动找 TA 说话】原因：${reason}。TA 现在没在跟你聊天，你主动发一两句消息开个头，自然一点，可以说说你在干嘛、想到了什么，不要质问 TA 为什么不理你。${top ? `你刚才在想：“${top.text}”。` : ''}`;
       const found = this.memory.search('', { now, limit: 6 });
-      const messages = buildMessages({ ...this.context(extra), memories: found.items, confident: true });
-      const text = (await this.call(messages, { temperature: 1.2 })).trim();
+      const speech = speechState(this.body, this.state, body.pad(this.body, this.state));
+      const messages = buildMessages({ ...this.context(extra), memories: found.items, confident: true, speech });
+      const text = (await this.call(messages, { temperature: speech.temperature, maxTokens: speech.maxTokens ?? undefined })).trim();
       if (!text) return null;
       this.state = life.markProactive(this.state, now);
       const msg = { role: 'assistant', content: text, at: now, id: `p-${now}`, proactive: true };

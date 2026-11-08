@@ -84,7 +84,7 @@ async function consolidate(opts) {
   const episodes = bank.records
     .filter((r) => r.layer === 'episodic' && !r.archived && r.at >= since && r.at <= now)
     .sort((a, b) => a.at - b.at)
-    .slice(-(cfg.maxEpisodesPerRun || 80));
+    .slice(-Math.max(1, Math.round((cfg.maxEpisodesPerRun || 80) * (opts.quality ?? 1))));
 
   if (episodes.length < (cfg.minEpisodes || 3) && !force) {
     return { ok: false, skipped: true, reason: '今晚没发生什么，明天再说', episodes: episodes.length };

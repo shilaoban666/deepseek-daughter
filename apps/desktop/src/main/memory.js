@@ -235,6 +235,7 @@ class MemoryBank {
         source: { kind: raw.source?.kind || 'system', who: raw.source?.who || '', credibility: num(raw.source?.credibility, this.credibility(raw.source?.kind || 'system')) },
         importance: clamp(num(raw.importance, 0.4)),
         emotion: raw.emotion || null,
+        bodyStates: Array.isArray(raw.bodyStates) ? raw.bodyStates : [],
         entities: uniq((raw.entities || extractEntities(text)).map(norm).filter(Boolean)).slice(0, 12),
         tags: uniq((raw.tags || []).map(norm).filter(Boolean)),
         recallCount: num(raw.recallCount, 0),
@@ -296,6 +297,7 @@ class MemoryBank {
       source,
       importance: clamp(num(input.importance, this.defaultImportance(layer))),
       emotion: input.emotion && typeof input.emotion === 'object' ? { P: num(input.emotion.P), A: num(input.emotion.A), D: num(input.emotion.D) } : null,
+      bodyStates: Array.isArray(input.bodyStates) ? input.bodyStates : [],
       entities: uniq((input.entities?.length ? input.entities : extractEntities(text)).map(norm).filter(Boolean)).slice(0, 12),
       tags: uniq((input.tags || []).map(norm).filter(Boolean)),
       recallCount: 0,
@@ -596,6 +598,8 @@ class MemoryBank {
       let score = wv * sim + wk * kw + we * ent + wi * imp + wf * fresh;
       score *= 0.7 + 0.3 * r.source.credibility;
       if (r.provisional) score *= 0.85;
+      // 心情一致性：心情好时更容易想起开心的事
+      if (opts.mood != null && r.emotion) score += num(cfg.moodCongruence, 0.08) * opts.mood * num(r.emotion.P);
       if (score > 0.01) scored.push({ ...r, score, parts: { vector: sim, keyword: kw, entity: ent, importance: imp, freshness: fresh } });
     }
     scored.sort((a, b) => b.score - a.score || b.at - a.at);
