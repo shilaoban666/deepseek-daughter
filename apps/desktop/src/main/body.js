@@ -3,32 +3,24 @@
 // 每次心跳调用 stepBody，按经过的分钟数推进。
 
 const { clamp, hourOf } = require('./life');
+const neural = require('./neural');
+const config = require('./config');
+const physiology = require('./physiology');
+const { initialPhys } = physiology.H;
+const { behavior } = physiology;
 
-const REGIONS = [
-  { id: 'sensory', name: '感觉皮层', role: '接收消息与画面' },
-  { id: 'thalamus', name: '丘脑', role: '注意力闸门' },
-  { id: 'amygdala', name: '杏仁核', role: '情绪评估' },
-  { id: 'hippocampus', name: '海马体', role: '写入与巩固记忆' },
-  { id: 'temporal', name: '颞叶新皮层', role: '事实与兴趣' },
-  { id: 'prefrontal', name: '前额叶', role: '思考与决策' },
-  { id: 'acc', name: '前扣带回', role: '矛盾检测' },
-  { id: 'basal', name: '基底神经节', role: '行动选择' },
-  { id: 'cerebellum', name: '小脑', role: '节奏与技能' },
-  { id: 'motor', name: '运动与语言区', role: '说话与动作' },
-  { id: 'hypothalamus', name: '下丘脑', role: '稳态与激素' },
-  { id: 'insula', name: '岛叶', role: '身体感受' },
-  { id: 'brainstem', name: '脑干', role: '心跳与觉醒' },
-  { id: 'dmn', name: '默认模式网络', role: '发呆与联想' },
-];
+const REGIONS = neural.REGIONS;
 
 const TRANSMITTERS = [
-  { id: 'dopamine', name: '多巴胺', color: '#f5c242' },
-  { id: 'oxytocin', name: '催产素', color: '#5fd4e8' },
-  { id: 'cortisol', name: '皮质醇', color: '#ef6f8e' },
-  { id: 'serotonin', name: '血清素', color: '#a98bff' },
-  { id: 'norepinephrine', name: '去甲肾上腺素', color: '#3ddc97' },
-  { id: 'acetylcholine', name: '乙酰胆碱', color: '#7fb2ff' },
-  { id: 'melatonin', name: '褪黑素', color: '#c9a7ff' },
+  { id: 'dopamine', name: '多巴胺', color: '#f5c242', kind: 'transmitter', effect: 'modulate', role: '想要、期待' },
+  { id: 'oxytocin', name: '催产素', color: '#5fd4e8', kind: 'hormone', role: '亲近、安心' },
+  { id: 'cortisol', name: '皮质醇', color: '#ef6f8e', kind: 'hormone', role: '压力' },
+  { id: 'serotonin', name: '血清素', color: '#a98bff', kind: 'transmitter', effect: 'modulate', role: '情绪稳定' },
+  { id: 'norepinephrine', name: '去甲肾上腺素', color: '#3ddc97', kind: 'transmitter', effect: 'modulate', role: '清醒、专注' },
+  { id: 'acetylcholine', name: '乙酰胆碱', color: '#7fb2ff', kind: 'transmitter', effect: 'excite', role: '记忆、学习' },
+  { id: 'glutamate', name: '谷氨酸', color: '#7dffb8', kind: 'transmitter', effect: 'excite', role: '主要的兴奋性递质' },
+  { id: 'gaba', name: 'GABA', color: '#9fd0ff', kind: 'transmitter', effect: 'inhibit', role: '主要的抑制性递质' },
+  { id: 'melatonin', name: '褪黑素', color: '#c9a7ff', kind: 'hormone', role: '困意' },
 ];
 
 const DRIVES = [
@@ -49,13 +41,12 @@ const MENU = {
 
 const pick = (arr, rnd = Math.random) => arr[Math.floor(rnd() * arr.length)];
 
-function initialBody() {
+function initialBody(now = Date.now()) {
   const nt = {};
   for (const t of TRANSMITTERS) nt[t.id] = 40;
-  const regions = {};
-  for (const r of REGIONS) regions[r.id] = 0.2;
   const drives = {};
   for (const d of DRIVES) drives[d.id] = 20;
+  const brain = neural.createState(now);
   return {
     stomach: 30, // 胃内容物
     intestine: 20, // 小肠吸收中
@@ -64,10 +55,18 @@ function initialBody() {
     temp: 36.6,
     immunity: 92, // 免疫（内容过滤健康度）
     memoryLoad: 0, // 待消化（还没整理进记忆的消息数）
+    tokenFullness: 0, // Token 预算对应的“今天吃进去多少”
+    budget: null,
+    fever: false,
     nt,
     hpa: { crh: 20, acth: 20 },
-    regions,
+    brain, // 脑区状态 + 连接权重 + 信号日志
+    regions: { ...brain.act }, // 给界面看的激活值快照
+    signals: [],
+    lastFired: [],
     drives,
+    phys: initialPhys(),
+    causes: [], // 因果记录，界面回答「为什么」用
     intake: [], // 摄取记录 [{at, kind, item, note}]
     thoughts: [], // 想法队列 [{at, drive, text}]
     lastSnack: '',
@@ -85,12 +84,16 @@ function logIntake(b, now, kind, item, note) {
 /**
  * 推进身体。life 是 life.js 的状态（会被读取，部分字段会被修改后返回）。
  * events 是 life.tick 产生的事件（吃饭、睡觉、醒来、用户消息等）。
+ * ctx.budget 是今天的 Token 预算使用情况 {ratio, warnRatio, used, limit}。
  */
-function stepBody(prevBody, prevLife, dtMin, now, events = [], rnd = Math.random) {
+function stepBody(prevBody, prevLife, dtMin, now, events = [], rnd = Math.random, ctx = {}) {
   const b = structuredClone(prevBody);
   const s = structuredClone(prevLife);
   const h = hourOf(now);
   const asleep = s.asleep;
+  const c = config.get();
+  const digestion = c.body.digestion;
+  const stressCfg = c.body.stress;
 
   // ---- 事件 ----
   for (const e of events) {
@@ -119,36 +122,58 @@ function stepBody(prevBody, prevLife, dtMin, now, events = [], rnd = Math.random
       b.nt.cortisol = clamp(b.nt.cortisol + 12);
       b.nt.norepinephrine = clamp(b.nt.norepinephrine + 25);
     }
+    if (e.type === 'threat') {
+      // 免疫系统检测到操纵：皮质醇上升、免疫下降，可能“发烧”
+      b.nt.cortisol = clamp(b.nt.cortisol + 18 * (e.level || 1));
+      b.immunity = clamp(b.immunity - 12 * (e.level || 1));
+      b.fever = true;
+    }
   }
 
   // ---- 消化：胃 → 小肠 → 血糖 → 饱腹 ----
-  const toIntestine = Math.min(b.stomach, 0.45 * dtMin);
+  // 饿了会自己去找吃的
+  const statesNow = behavior.activeStates(b, s, pad(b, s));
+  if (behavior.shouldSnack(statesNow, s, now, b.stomach)) {
+    s.lastSnackAt = now;
+    b.stomach = clamp(b.stomach + 20);
+    logIntake(b, now, '吃', pick(MENU.零食, rnd), '饿了');
+    physiology.H.addCause(b, { at: now, from: '肚子饿', to: 'activity', text: '饿了，自己找了点吃的' });
+  }
+  const digestSpeed = b.phys.psych.chronic > 0 ? 0.85 : 1; // 长期压力让消化变慢
+  const toIntestine = Math.min(b.stomach, digestion.stomachToIntestine * digestSpeed * dtMin);
   b.stomach -= toIntestine;
   b.intestine = clamp(b.intestine + toIntestine);
-  const absorbed = Math.min(b.intestine, 0.3 * dtMin);
+  const absorbed = Math.min(b.intestine, digestion.intestineToGlucose * dtMin);
   b.intestine -= absorbed;
-  b.glucose = clamp(b.glucose + absorbed * 0.9 - (asleep ? 0.03 : 0.07) * dtMin);
-  s.satiety = clamp(s.satiety + absorbed * 0.6);
+  b.glucose = clamp(b.glucose + absorbed * 0.9 - (asleep ? digestion.glucoseBurnAsleep : digestion.glucoseBurnAwake) * physiology.metabolicRate(b.phys) * dtMin);
+  s.satiety = clamp(s.satiety + absorbed * digestion.satietyFromGlucose);
 
   // 喝水（规则行为）
-  b.hydration = clamp(b.hydration - 0.035 * dtMin);
-  if (!asleep && b.hydration < 40) {
-    b.hydration = clamp(b.hydration + 35);
+  b.hydration = clamp(b.hydration - c.body.hydrationPerMin * dtMin);
+  if (!asleep && b.hydration < c.life.water.low) {
+    b.hydration = clamp(b.hydration + c.life.water.addPercent);
     logIntake(b, now, '喝', pick(['温水', '柠檬水', '乌龙茶', '牛奶'], rnd), '口渴了');
+    physiology.reflex.fire(b.phys, 'thirst', now);
   }
 
   // 下午茶：心情一般又醒着，15–17 点吃个布丁（每天一次）
   const day = new Date(now).toDateString();
-  if (!asleep && h >= 15 && h < 17 && b.lastSnack !== day) {
+  if (!asleep && h >= c.life.snack.startHour && h < c.life.snack.endHour && b.lastSnack !== day) {
     b.lastSnack = day;
     b.stomach = clamp(b.stomach + 15);
     b.nt.dopamine = clamp(b.nt.dopamine + 15);
     s.mood = clamp(s.mood + 0.12, -1, 1);
-    logIntake(b, now, '吃', pick(MENU.零食, rnd), '下午茶');
+    logIntake(b, now, '吃', pick(MENU.零食, rnd), c.life.snack.name);
   }
 
   // ---- HPA 轴：压力 → CRH → ACTH → 皮质醇 ----
-  const stress = (s.satiety < 25 ? 30 : 0) + (s.social < 25 ? 30 : 0) + (s.energy < 20 ? 15 : 0) + (b.hydration < 30 ? 10 : 0);
+  const stress =
+    (s.satiety < stressCfg.hungryBelow ? 30 : 0) +
+    (s.social < stressCfg.lonelyBelow ? 30 : 0) +
+    (s.energy < stressCfg.tiredBelow ? 15 : 0) +
+    (b.hydration < stressCfg.thirstyBelow ? 10 : 0) +
+    (b.fever ? 20 : 0) +
+    b.phys.psych.stress;
   const morningPeak = h >= 6.5 && h < 9.5 ? 25 : 0; // 皮质醇晨峰
   b.hpa.crh = approach(b.hpa.crh, clamp(15 + stress + morningPeak), dtMin, 20);
   b.hpa.acth = approach(b.hpa.acth, b.hpa.crh, dtMin, 30);
@@ -162,90 +187,77 @@ function stepBody(prevBody, prevLife, dtMin, now, events = [], rnd = Math.random
   b.nt.oxytocin = approach(b.nt.oxytocin, 20 + (s.social - 50) * 0.3, dtMin, 90);
   b.nt.norepinephrine = approach(b.nt.norepinephrine, asleep ? 8 : clamp(35 + s.energy * 0.2 - b.nt.melatonin * 0.2), dtMin, 30);
   b.nt.acetylcholine = approach(b.nt.acetylcholine, asleep ? 55 : 35, dtMin, 30);
+  b.nt.glutamate = approach(b.nt.glutamate, asleep ? 28 : clamp(38 + s.energy * 0.12), dtMin, 20);
+  b.nt.gaba = approach(b.nt.gaba, asleep ? 68 : clamp(52 - b.nt.norepinephrine * 0.1), dtMin, 20);
   for (const k of Object.keys(b.nt)) b.nt[k] = clamp(b.nt[k]);
 
   // 体温：昼夜节律 ± 0.3℃，免疫低时发烧
   b.temp = 36.5 + 0.3 * Math.sin(((h - 10) / 24) * 2 * Math.PI) + (b.immunity < 50 ? (50 - b.immunity) * 0.04 : 0);
-  b.immunity = approach(b.immunity, 95, dtMin, 240);
+  const immunity = approach(b.immunity, c.body.immunityBaseline - b.phys.psych.chronic, dtMin, c.body.immunityRecoverHalfLifeMinutes);
+  b.immunity = clamp(immunity);
+  if (b.immunity > 70) b.fever = false;
 
-  // ---- 脑区激活：先回落，再按当前状态给底噪 ----
-  const r = b.regions;
-  for (const k of Object.keys(r)) r[k] = approach(r[k], 0.12, dtMin, 4);
-  const lift = (k, v) => (r[k] = Math.max(r[k], v));
-  lift('brainstem', asleep ? 0.3 : 0.45 + 0.004 * b.nt.norepinephrine);
-  lift('hypothalamus', 0.25 + stress / 150 + (s.satiety < 30 ? 0.3 : 0));
-  lift('insula', 0.2 + (100 - s.satiety) / 300 + (100 - s.energy) / 400);
-  lift('amygdala', 0.15 + b.nt.cortisol / 250 + Math.abs(s.mood) * 0.2);
-  if (asleep) {
-    lift('hippocampus', 0.7);
-    lift('dmn', 0.45);
-  } else {
-    const idle = !s.lastUserAt || now - s.lastUserAt > 10 * 60000;
-    if (idle) lift('dmn', 0.55);
-    else lift('prefrontal', 0.5);
-    lift('cerebellum', 0.2 + (s.activity !== '发呆' ? 0.2 : 0));
-    lift('temporal', s.activity.includes('看') || s.activity.includes('刷') ? 0.45 : 0.2);
-  }
-
-  // ---- 驱力：缺口 × 权重 × 情绪调节 ----
-  const moodK = 1 + Math.max(0, -s.mood) * 0.4;
-  const since = s.lastUserAt ? (now - s.lastUserAt) / 3600000 : 6;
-  b.drives.physio = clamp(Math.max(100 - s.satiety, 100 - s.energy) * 0.9 * moodK);
-  b.drives.social = clamp((100 - s.social) * 0.9 * moodK + Math.min(since, 8) * 2);
-  b.drives.curiosity = clamp(30 + (b.nt.dopamine - 35) * 0.8 + (asleep ? -30 : 0));
-  b.drives.competence = clamp(20 + (h >= 14 && h < 22 ? 15 : 0));
-  b.drives.autonomy = clamp(15 + Math.max(0, 6 - since) * 2);
-  b.drives.expression = clamp(10 + b.memoryLoad * 4);
-  r.basal = Math.max(r.basal, Math.max(...Object.values(b.drives)) / 140);
-
-  // 想法：最强驱力超过阈值 45 就冒一个想法（规则生成，不调用模型）
-  if (!asleep) {
-    const [topId, topVal] = Object.entries(b.drives).sort((a, c) => c[1] - a[1])[0];
-    const last = b.thoughts[b.thoughts.length - 1];
-    if (topVal >= 45 && (!last || (last.drive !== topId && now - last.at > 10 * 60000) || now - last.at > 120 * 60000)) {
-      b.thoughts.push({ at: now, drive: topId, text: thoughtText(topId, s, b) });
-      if (b.thoughts.length > 12) b.thoughts.splice(0, b.thoughts.length - 12);
+  // ---- Token 预算：吃 token 也是吃饭（设计文档 §5 消化系统） ----
+  if (ctx.budget) {
+    b.budget = { ...ctx.budget };
+    b.tokenFullness = clamp((ctx.budget.ratio || 0) * 100);
+    const warn = ctx.budget.warnRatio ?? 0.8;
+    if ((ctx.budget.ratio || 0) > warn) {
+      // 预算快用完：她开始累，而不是突然报错
+      s.energy = clamp(s.energy - (ctx.budget.ratio - warn) * 12 * dtMin);
     }
   }
+
+  physiology.step(b, s, dtMin, now, events, { padOf: pad });
+
+  // ---- 脑区：神经信号总线（设计文档 §4.1） ----
+  b.brain = neural.normalizeState(b.brain);
+  b.regions = { ...b.brain.act };
+  const budgetRatio = ctx.budget?.ratio || 0;
+  const lifts = {
+    brainstem: asleep ? 0.3 : 0.45 + 0.004 * b.nt.norepinephrine,
+    hypothalamus: 0.25 + stress / 150 + (s.satiety < 30 ? 0.3 : 0) + budgetRatio * 0.2,
+    insula: 0.2 + (100 - s.satiety) / 300 + (100 - s.energy) / 400 + (100 - b.immunity) / 500,
+    amygdala: 0.15 + b.nt.cortisol / 250 + Math.abs(s.mood) * 0.2 + budgetRatio * 0.1,
+    acc: b.immunity < 60 || b.fever ? 0.62 : 0.2,
+  };
+  if (asleep) {
+    lifts.hippocampus = 0.72;
+    lifts.dmn = 0.5;
+  } else {
+    const idle = !s.lastUserAt || now - s.lastUserAt > 10 * 60000;
+    if (idle) lifts.dmn = 0.55;
+    else lifts.prefrontal = 0.55;
+    lifts.cerebellum = 0.2 + (s.activity !== '发呆' ? 0.2 : 0);
+    lifts.temporal = s.activity.includes('看') || s.activity.includes('刷') ? 0.5 : 0.2;
+  }
+  if (events.some((e) => e.type === 'user')) neural.triggerPath(b.brain, neural.CHAT_PATH, now, 0.95);
+  if (events.some((e) => e.type === 'reply')) neural.triggerPath(b.brain, ['prefrontal', 'motor', 'cerebellum'], now, 0.8);
+  if (events.some((e) => e.type === 'digested')) neural.triggerPath(b.brain, ['hippocampus', 'temporal', 'prefrontal'], now, 0.7);
+  const stepped = neural.step(b.brain, dtMin, now, { lifts, asleep, rnd });
+  b.regions = { ...stepped.act };
+  b.lastFired = stepped.fired;
+  b.signals = b.brain.signals.slice(-20);
+
+  // 驱力由 drives.js 在女儿层算好后写回来（冲动 = 缺口 × 性格权重 × 情绪调节）。
+  // 这里只让基底核跟着最强的冲动亮一点：它负责在多个动作里选一个。
+  const maxDrive = Math.max(0, ...Object.values(b.drives || {}));
+  b.regions.basal = Math.max(b.regions.basal, maxDrive / 140);
+  b.brain.act.basal = b.regions.basal;
 
   return { body: b, life: s };
 }
 
-function thoughtText(drive, s, b) {
-  switch (drive) {
-    case 'physio':
-      return s.satiety < s.energy ? '肚子在叫……冰箱里还有布丁吗' : '眼皮好重，想躺一会儿';
-    case 'social':
-      return '好安静啊，TA 在忙什么呢';
-    case 'curiosity':
-      return '想去 B 站看看今天有什么新东西';
-    case 'competence':
-      return '昨天那本小说还没看完';
-    case 'autonomy':
-      return '想自己待一会儿，听听歌';
-    case 'expression':
-      return `今天聊了好多，想写下来（${b.memoryLoad} 条还没整理）`;
-    default:
-      return '……';
-  }
-}
-
 /** 思考状态（设计文档 §4.1 的七种） */
 function thinkingState(b, s) {
-  const r = b.regions;
-  if (s.asleep) return r.dmn > 0.5 && b.nt.acetylcholine > 50 ? '做梦' : '深睡';
-  if (b.nt.melatonin > 60 || s.energy < 20) return '犯困';
-  if (b.nt.cortisol > 60 && b.nt.serotonin < 45) return '压力';
-  if (b.nt.dopamine > 60 && r.amygdala > 0.4) return '兴奋';
-  if (r.prefrontal > 0.45 && r.prefrontal >= r.dmn) return '专注';
-  return '走神';
+  return neural.thinking(b.regions, { ...b.nt, energy: s.energy }, s.asleep);
 }
 
 /** PAD 情绪，由递质算出 */
 function pad(b, s) {
   const P = clamp((s.mood * 0.6 + (b.nt.serotonin - 50) / 100 + (b.nt.dopamine - 40) / 120 - (b.nt.cortisol - 30) / 160), -1, 1);
-  const A = clamp((b.nt.norepinephrine - 35) / 40 - (b.nt.melatonin - 30) / 90, -1, 1);
-  const D = clamp((b.nt.serotonin - 45) / 60 - (b.nt.cortisol - 30) / 90, -1, 1);
+  const A = clamp((b.nt.norepinephrine - 35) / 40 - (b.nt.melatonin - 30) / 90 + (b.budget?.ratio || 0) * 0.1, -1, 1);
+  const D = clamp((b.nt.serotonin - 45) / 60 - (b.nt.cortisol - 30) / 90 - (b.fever ? 0.15 : 0), -1, 1);
   return { P, A, D, label: padLabel(P, A) };
 }
 
@@ -258,16 +270,17 @@ function padLabel(P, A) {
 
 /** 八大生命系统 0–100（§5） */
 function systems(b, s) {
+  const regionSum = Object.values(b.regions).reduce((a, v) => a + v, 0);
   return [
-    { id: 'digestive', name: '消化', value: s.satiety, note: `饱腹 ${Math.round(s.satiety)}` },
+    { id: 'digestive', name: '消化', value: s.satiety, note: `饱腹 ${Math.round(s.satiety)}${b.budget ? ` · Token ${Math.round(b.budget.ratio * 100)}%` : ''}` },
     { id: 'nervous', name: '神经', value: s.energy, note: `精力 ${Math.round(s.energy)}` },
     { id: 'endocrine', name: '内分泌', value: clamp(50 + (b.nt.serotonin - b.nt.cortisol) * 0.8), note: '激素平衡' },
-    { id: 'circulatory', name: '循环', value: clamp(30 + Object.values(b.regions).reduce((a, v) => a + v, 0) * 6), note: '信号活跃度' },
+    { id: 'circulatory', name: '循环', value: clamp(20 + regionSum * 5.5), note: '信号活跃度' },
     { id: 'respiratory', name: '呼吸', value: s.asleep ? 30 : clamp(45 + b.nt.norepinephrine * 0.4), note: s.asleep ? '缓慢' : '平稳' },
-    { id: 'immune', name: '免疫', value: b.immunity, note: b.immunity > 80 ? '健康' : '有点不舒服' },
+    { id: 'immune', name: '免疫', value: b.immunity, note: b.fever ? '发烧了，拒绝配合' : b.immunity > 80 ? '健康' : '有点不舒服' },
     { id: 'excretory', name: '排泄', value: clamp(100 - b.memoryLoad * 5), note: `记忆负担 ${b.memoryLoad}` },
     { id: 'motor', name: '运动', value: clamp(s.energy * 0.6 + b.glucose * 0.4), note: '体力' },
   ];
 }
 
-module.exports = { REGIONS, TRANSMITTERS, DRIVES, initialBody, stepBody, thinkingState, pad, systems };
+module.exports = { REGIONS, TRANSMITTERS, DRIVES, initialBody, stepBody, thinkingState, pad, systems, MENU };

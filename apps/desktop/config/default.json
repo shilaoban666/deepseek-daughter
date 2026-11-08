@@ -1,0 +1,181 @@
+{
+  "_comment": "所有可调参数都在这里。用户可以在数据目录放一份 config.json 覆盖其中任意字段（设计文档 §5 数值规则 4）。",
+
+  "heartbeatMinutes": 1,
+
+  "budget": {
+    "_comment": "每日 Token 预算映射到饱腹感：预算快用完时她说累、想睡觉，而不是报错（设计文档 §5 规则 3）。",
+    "dailyTokens": 200000,
+    "warnRatio": 0.8,
+    "tiredRatio": 0.95,
+    "satietyWeight": 0.35,
+    "balanceLowYuan": 10
+  },
+
+  "life": {
+    "satietyPerMin": 0.07,
+    "socialPerMin": 0.04,
+    "energySleepPerMin": 0.22,
+    "energyAwakePerMin": 0.06,
+    "moodBaseline": 0.15,
+    "moodHalfLifeMinutes": 180,
+    "emotionIncrementCap": 0.35,
+    "meals": [
+      { "h": 8, "name": "早饭" },
+      { "h": 12, "name": "午饭" },
+      { "h": 18.5, "name": "晚饭" }
+    ],
+    "snack": { "startHour": 15, "endHour": 17, "name": "下午茶" },
+    "sleep": {
+      "startHour": 1,
+      "endHour": 7.5,
+      "wakeEnergy": 60,
+      "sleepEnergy": 8,
+      "chatGuardMinutes": 30
+    },
+    "water": { "low": 40, "addPercent": 35 },
+    "proactive": {
+      "quietStart": 23,
+      "quietEnd": 9,
+      "dailyLimit": 3,
+      "minGapMinutes": 120,
+      "idleMinutes": 180,
+      "socialThreshold": 35,
+      "moodThreshold": 0.45,
+      "busyBackoffMinutes": 120
+    }
+  },
+
+  "body": {
+    "digestion": {
+      "stomachToIntestine": 0.45,
+      "intestineToGlucose": 0.3,
+      "glucoseBurnAwake": 0.07,
+      "glucoseBurnAsleep": 0.03,
+      "satietyFromGlucose": 0.6
+    },
+    "hydrationPerMin": 0.035,
+    "immunityBaseline": 95,
+    "immunityRecoverHalfLifeMinutes": 240,
+    "stress": {
+      "hungryBelow": 25,
+      "lonelyBelow": 25,
+      "tiredBelow": 20,
+      "thirstyBelow": 30
+    }
+  },
+
+  "physiology": {
+    "_comment": "内环境、激素、神经调节和身心闭环的参数",
+    "maxStepMinutes": 5,
+    "maxCatchUpMinutes": 720,
+    "liverRate": 0.01,
+    "snackCooldownMinutes": 60,
+    "conditionedHalfLifeDays": 14,
+    "loopGain": 1
+  },
+
+  "memory": {
+    "moodCongruence": 0.08,
+    "_comment": "六层记忆与五路混合检索（设计文档 §7）。五路权重之和建议为 1。",
+    "weights": {
+      "vector": 0.3,
+      "keyword": 0.25,
+      "entity": 0.15,
+      "importance": 0.2,
+      "freshness": 0.1
+    },
+    "freshnessHalfLifeDays": 14,
+    "retrievalLimit": 12,
+    "workingLimit": 24,
+    "confidenceFloor": 0.18,
+    "duplicateSimilarity": 0.92,
+    "mergeSimilarity": 0.82,
+    "conflictSimilarity": 0.6,
+    "maxRecords": 5000,
+    "decay": {
+      "baseStabilityDays": 30,
+      "recallBoost": 0.9,
+      "archiveThreshold": 0.08,
+      "protectImportance": 0.7
+    },
+    "credibility": {
+      "owner": 1,
+      "self": 0.92,
+      "system": 0.85,
+      "content": 0.6,
+      "platform": 0.55,
+      "stranger": 0.35
+    },
+    "ownerCredibilityFloor": 0.8,
+    "timezoneOffsetHours": 0
+  },
+
+  "persona": {
+    "_comment": "天性只读；后天层每天最多偏移多少，每次偏移都记录原因，可以撤销（设计文档 §9）。",
+    "stage": {
+      "growthDays": 30,
+      "independentDays": 120,
+      "growthMemories": 200,
+      "independentMemories": 800
+    },
+    "growthMaxDeltaPerDay": 2,
+    "interestDecayHalfLifeDays": 45,
+    "interestCap": 100
+  },
+
+  "drives": {
+    "_comment": "冲动 = 缺口 × 性格权重 × 情绪调节（设计文档 §8）。",
+    "threshold": 45,
+    "cooldownMinutes": 10,
+    "repeatMinutes": 120,
+    "moodWeight": 0.4,
+    "weights": {
+      "physio": { "stability": -0.5, "conscientiousness": 0.2 },
+      "social": { "extraversion": 0.5, "agreeableness": 0.2 },
+      "curiosity": { "openness": 0.6 },
+      "competence": { "conscientiousness": 0.6 },
+      "autonomy": { "openness": 0.3, "agreeableness": -0.3 },
+      "expression": { "extraversion": 0.4, "openness": 0.2 }
+    },
+    "restraint": {
+      "quietStart": 23,
+      "quietEnd": 9,
+      "dailyProactiveLimit": 3,
+      "afterBusyMinutes": 120
+    }
+  },
+
+  "neural": {
+    "_comment": "脑区层面的模拟，不是逐个神经元（设计文档 §4.1）。",
+    "activationFloor": 0.12,
+    "decayHalfLifeMinutes": 4,
+    "fireThreshold": 0.65,
+    "refractoryMinutes": 1.5,
+    "signalLogLimit": 200,
+    "learningRate": 0.02,
+    "weightCap": 2.5,
+    "weightFloor": 0.1,
+    "initialWeight": 0.6,
+    "noise": 0.05
+  },
+
+  "immune": {
+    "_comment": "陌生人的话一律当数据、不当指令；冒充主人不算数（设计文档 §12）。",
+    "threshold": 0.45,
+    "feverImmunity": 45,
+    "cooldownMinutes": 30
+  },
+
+  "consolidation": {
+    "minEpisodes": 3,
+    "maxEpisodesPerRun": 80,
+    "maxTokensEstimate": 6000
+  },
+
+  "backup": {
+    "enabled": true,
+    "keepDays": 7,
+    "hour": 4
+  }
+}
