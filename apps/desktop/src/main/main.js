@@ -1,6 +1,7 @@
 // Electron 主进程
 
-const { app, BrowserWindow, ipcMain, Notification, safeStorage, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, safeStorage, shell, protocol, net, clipboard } = require('electron');
+const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 const fs = require('fs');
 const path = require('path');
@@ -9,6 +10,8 @@ const { JsonStore } = require('./store');
 const { Daughter } = require('./daughter');
 const { APP_NAME, nameOf } = require('./persona');
 const { DEFAULT_BASE } = require('./deepseek');
+const { createSecrets, electronCipher } = require('./secrets');
+const channels = require('./channels/registry');
 
 const DEFAULT_MODEL = 'deepseek-chat';
 
@@ -55,47 +58,31 @@ if (!app.requestSingleInstanceLock()) {
   let store = null;
   let settings = null;
 
-  // ---------- 设置（API Key 用系统加密保存） ----------
-  // Electron 45 起同步的 encryptString/decryptString 已过时（46 删除），统一用异步接口。
-  // 旧版本用 encryptString 存下的数据，decryptStringAsync 可以直接解开。
+  let secrets = null;
+  let channelSettings = {};
+
+  // ---------- 设置（密钥用系统加密保存，见 secrets.js） ----------
+  // Electron 45 起同步的 encryptString/decryptString 已过时（46 删除），secrets.js 统一用异步接口；
+  // 旧版本存在 apiKeyEnc 里的 Key 第一次读到时会迁移到新格式。
   async function loadSettings() {
     const raw = store.load('settings', {});
-    let apiKey = '';
-    if (raw.apiKeyEnc && (await safeStorage.isAsyncEncryptionAvailable())) {
-      try {
-        const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(Buffer.from(raw.apiKeyEnc, 'base64'));
-        apiKey = result;
-        if (shouldReEncrypt && apiKey) {
-          raw.apiKeyEnc = (await safeStorage.encryptStringAsync(apiKey)).toString('base64');
-          store.save('settings', raw);
-        }
-      } catch {
-        apiKey = '';
-      }
-    } else if (raw.apiKeyPlain) {
-      apiKey = raw.apiKeyPlain;
-    }
+    channelSettings = raw.channels && typeof raw.channels === 'object' ? raw.channels : {};
+    const apiKey = await secrets.read('deepseek');
     return {
       apiKey: process.env.DEEPSEEK_API_KEY || apiKey,
       baseUrl: process.env.DFY_API_BASE || raw.baseUrl || DEFAULT_BASE,
       model: raw.model || DEFAULT_MODEL,
       userName: raw.userName || '',
       userTitle: raw.userTitle || '',
-      onebotUrl: raw.onebotUrl || '',
       daughterName: raw.daughterName || '',
     };
   }
 
   async function saveSettings(next) {
+    if (typeof next.apiKey === 'string' && next.apiKey.trim()) await secrets.save('deepseek', next.apiKey.trim());
     const raw = store.load('settings', {});
-    if (typeof next.apiKey === 'string' && next.apiKey.trim()) {
-      const key = next.apiKey.trim();
-      delete raw.apiKeyEnc;
-      delete raw.apiKeyPlain;
-      if (await safeStorage.isAsyncEncryptionAvailable()) raw.apiKeyEnc = (await safeStorage.encryptStringAsync(key)).toString('base64');
-      else raw.apiKeyPlain = key;
-    }
-    for (const k of ['model', 'userName', 'userTitle', 'baseUrl', 'onebotUrl', 'daughterName']) {
+    delete raw.onebotUrl; // 旧版本留下的，没人用
+    for (const k of ['model', 'userName', 'userTitle', 'baseUrl', 'daughterName']) {
       if (typeof next[k] === 'string') raw[k] = next[k].trim();
     }
     store.save('settings', raw);
@@ -108,9 +95,15 @@ if (!app.requestSingleInstanceLock()) {
     userName: settings.userName,
     userTitle: settings.userTitle,
     baseUrl: settings.baseUrl,
-    onebotUrl: settings.onebotUrl,
     daughterName: nameOf(settings),
   });
+
+  // ---------- 平台插件（这一期只保存设置，不连接） ----------
+  const channelList = () => channels.list(channelSettings, (n) => secrets.has(n));
+  const secretName = (id) => {
+    const p = channels.byId(id);
+    return p?.secret ? `channel:${id}:${p.secret.key}` : null;
+  };
 
   // ---------- 窗口 ----------
   function send(channel, ...args) {
@@ -188,6 +181,15 @@ if (!app.requestSingleInstanceLock()) {
       const img = await win.webContents.capturePage();
       fs.writeFileSync(path.join(dir, `${r.replace('/', '-')}.png`), img.toPNG());
     }
+    // 开发用：一组“场景”（先执行一段页面脚本再截图），比如插件页的抽屉和状态预览（DFY_SHOT_SCENES=[{name, js}]）
+    for (const sc of JSON.parse(process.env.DFY_SHOT_SCENES || '[]')) {
+      await win.webContents.executeJavaScript(sc.js);
+      await wait(sc.wait || 700);
+      await win.webContents.capturePage();
+      await wait(250);
+      const img = await win.webContents.capturePage();
+      fs.writeFileSync(path.join(dir, `${sc.name}.png`), img.toPNG());
+    }
     app.quit();
   }
 
@@ -196,6 +198,7 @@ if (!app.requestSingleInstanceLock()) {
     config.init({ dir: app.getPath('userData') });
     const dataDir = path.join(app.getPath('userData'), 'data');
     store = new JsonStore(dataDir);
+    secrets = createSecrets({ store, cipher: electronCipher(safeStorage) });
     settings = await loadSettings();
     daughter = new Daughter({ store, getSettings: () => settings, dataDir });
 
@@ -270,7 +273,30 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('remove-slang', (_e, term) => daughter.removeSlang(String(term)));
     ipcMain.handle('mark-false-positive', () => daughter.markFalsePositive());
     ipcMain.handle('open-external', (_e, url) => {
-      if (/^https:\/\/platform\.deepseek\.com\//.test(url)) shell.openExternal(url);
+      // 只放行固定的几个地址
+      if (/^https:\/\/platform\.deepseek\.com\//.test(url) || url === channels.NAPCAT_URL) shell.openExternal(url);
+    });
+    ipcMain.handle('channels-list', () => channelList());
+    ipcMain.handle('channels-save', (_e, id, values) => {
+      const res = channels.validate(String(id), values || {});
+      if (!res.ok) return { ok: false, errors: res.errors, list: channelList() };
+      const raw = store.load('settings', {});
+      raw.channels = { ...(raw.channels || {}), [id]: res.values };
+      store.save('settings', raw);
+      channelSettings = raw.channels;
+      return { ok: true, list: channelList() };
+    });
+    // 令牌：生成、复制。界面永远拿不到明文，复制由主进程直接写进剪贴板
+    ipcMain.handle('channels-secret', async (_e, id, action) => {
+      const name = secretName(String(id));
+      if (!name) return { ok: false, list: channelList() };
+      if (action === 'generate') await secrets.save(name, crypto.randomBytes(24).toString('base64url').slice(0, 32));
+      else if (action === 'copy') {
+        const v = await secrets.read(name);
+        if (!v) return { ok: false, list: channelList() };
+        clipboard.writeText(v);
+      }
+      return { ok: true, list: channelList() };
     });
 
     createWindow();

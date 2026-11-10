@@ -201,13 +201,16 @@ async function mainScenario() {
   await petChecks();
 
   // 性能：反复切换后不能叠加渲染循环，内存不能一直涨
+  // 被盖住的窗口 Chromium 只按每秒 1 帧画，测出来的帧间隔没有意义：测之前把测试窗口提到最上面
+  win.moveTop();
+  await sleep(300);
   await js(`(()=>{window.__rafReg=0;const o=window.requestAnimationFrame.bind(window);window.__origRaf=o;window.requestAnimationFrame=(f)=>{window.__rafReg++;return o(f)}})()`);
   const heapStart = await js('performance.memory.usedJSHeapSize');
   await js(`(async()=>{for(let i=0;i<60;i++){window.__go(i%2?'neuro/brain':'settings/general');await new Promise(r=>setTimeout(r,20))}window.__go('neuro/brain')})()`);
   await sleep(1500);
-  const perf = await js(`new Promise((resolve)=>{const o=window.__origRaf;window.__rafReg=0;let frames=0,last=performance.now(),sum=0,max=0;const t0=last;const tick=(now)=>{frames++;sum+=now-last;max=Math.max(max,now-last);last=now;if(now-t0<3000)o(tick);else resolve({perFrame:window.__rafReg/frames,avg:sum/frames,max,vis:document.visibilityState})};o(tick);setTimeout(()=>resolve({perFrame:frames?window.__rafReg/frames:0,avg:frames?sum/frames:0,max,vis:'stalled'}),6000)})`);
+  const perf = await js(`new Promise((resolve)=>{const o=window.__origRaf;window.__rafReg=0;let frames=0,last=performance.now(),sum=0,max=0;const t0=last;const tick=(now)=>{frames++;sum+=now-last;max=Math.max(max,now-last);last=now;if(now-t0<3000)o(tick);else resolve({perFrame:window.__rafReg/frames,avg:sum/frames,max,vis:document.visibilityState})};o(tick);setTimeout(()=>resolve({perFrame:frames?window.__rafReg/frames:0,avg:frames?sum/frames:0,max,frames,vis:'stalled',state:document.visibilityState,focus:document.hasFocus()}),6000)})`);
   check('反复切换后没有叠加渲染循环', perf.perFrame <= 2.6, `${perf.perFrame.toFixed(2)} 次/帧`);
-  check('3D 页面有在渲染', perf.vis !== 'stalled', perf.vis === 'stalled' ? '6 秒内没有一帧' : '');
+  check('3D 页面有在渲染', perf.vis !== 'stalled', perf.vis === 'stalled' ? `6 秒内只有 ${perf.frames} 帧（${perf.state}，焦点 ${perf.focus}）` : '');
   check('3D 页面主线程不卡（平均帧间隔 < 60ms）', perf.vis !== 'visible' || perf.avg < 60, `${perf.avg.toFixed(1)}ms，最长 ${perf.max.toFixed(0)}ms`);
   await js("window.__go('settings/general')");
   await sleep(300);
@@ -220,11 +223,50 @@ async function mainScenario() {
   await sleep(400);
   await sweep('最小窗口 1024×640');
   win.setContentSize(1440, 900);
+  await pluginsChecks();
   await js("window.__go('settings/general')");
   check('设置页有 API Key 输入框', await js("!!document.querySelector('#lk-key')"));
   const about = await js("document.querySelector('#about')?.innerText || ''");
   check('设置页署名了鲸鱼娘和皮层数据', about.includes('PC2005-cloud') && about.includes('禁止商用') && about.includes('Anderson Winkler'), about.replace(/\s+/g, ' ').slice(80, 200));
   check('设置页显示组件版本', about.includes(`大肥鱼 ${require('../package.json').version}`) && about.includes(`Electron ${process.versions.electron}`) && about.includes(`Node ${process.versions.node}`), about.replace(/\s+/g, ' ').slice(0, 80));
+}
+
+const settingsFile = () => {
+  try { return require('fs').readFileSync(require('path').join(app.getPath('userData'), 'data', 'settings.json'), 'utf8'); } catch { return '{}'; }
+};
+
+/** 插件页（这一期只有界面）：8 个平台、抽屉、校验、保存、令牌不外露、连接按钮是灰的 */
+async function pluginsChecks() {
+  await js("window.__go('explore/platforms')");
+  check('插件页：8 个平台都在', await waitFor("document.querySelectorAll('.plat-card').length===8", 5000));
+  const cards = await js("[...document.querySelectorAll('.plat-st')].map(e=>e.textContent)");
+  check('插件页：没有任何平台显示已连接', !cards.some((t) => t.includes('已连接')), cards.join(' | '));
+  await js("document.querySelector('[data-open=qq]').click()");
+  check('插件页：点 QQ 打开抽屉，焦点在第一个输入框', await js("!!document.querySelector('.drawer') && document.activeElement.dataset.field==='ownerQQ'"));
+  check('插件页：连接按钮是灰的', await js("document.querySelector('[data-connect]').disabled"));
+  const set = (k, v) => js(`(()=>{const i=document.querySelector('[data-field="${k}"]');i.value=${JSON.stringify(v)};i.dispatchEvent(new Event('input'))})()`);
+  await set('port', '9100');
+  check('插件页：改端口，接入步骤里的地址跟着变', await js("document.querySelector('.guide').innerText.includes('ws://127.0.0.1:9100')"));
+  await set('ownerQQ', '1234');
+  await js("document.querySelector('[data-save]').click()");
+  check('插件页：QQ 号填错，用人话提示', await waitFor("(document.querySelector('#ch-qq-ownerQQ-err')||{}).textContent==='QQ 号是 5 到 12 位数字'", 3000));
+  check('插件页：填错时没有存进去', !settingsFile().includes('"channels"'));
+  await set('ownerQQ', '12345678');
+  await set('groups', '10001，20002');
+  await js("document.querySelector('[data-save]').click()");
+  check('插件页：保存后状态变成“已保存设置”', await waitFor("document.querySelector('.drawer .plat-st').textContent.includes('已保存设置')", 3000));
+  await js("document.querySelector('[data-secret=generate]').click()");
+  check('插件页：能生成连接令牌', await waitFor("document.querySelector('.secret-row').innerText.includes('已生成')", 3000));
+  check('插件页：生成令牌后，整页文字里找不到令牌内容', !/[A-Za-z0-9_-]{32}/.test(await js('document.body.innerText')));
+  check('插件页：正式界面没有预览角标', await js("!document.querySelector('.preview-badge')"));
+  const raw = JSON.parse(settingsFile());
+  check('插件页：设置存进了存档', raw.channels?.qq?.ownerQQ === '12345678' && raw.channels.qq.port === 9100 && raw.channels.qq.groups.join() === '10001,20002', JSON.stringify(raw.channels || {}));
+  const listed = JSON.stringify(await js("window.fish.channelsList()"));
+  const stored = raw.secrets?.['channel:qq:token'] || {};
+  check('插件页：令牌加密存盘，界面拿不到内容', !!(stored.enc || stored.plain) && !listed.includes(stored.plain || '@@none@@') && !/"token"\s*:\s*"/.test(listed));
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))");
+  check('插件页：Esc 关掉抽屉', await js("!document.querySelector('.drawer')"));
+  check('插件页：卡片上显示已保存', await js("document.querySelector('[data-open=qq] .plat-st').textContent.includes('已保存设置')"));
 }
 
 async function restartScenario() {
@@ -233,6 +275,8 @@ async function restartScenario() {
   check('重启后纪念日还在', (await pageText()).includes('小明的生日'));
   await js("window.__go('us/slang')");
   check('重启后黑话还在', (await pageText()).includes('布丁税'));
+  const qq = (await js('window.fish.channelsList()')).find((p) => p.id === 'qq');
+  check('重启后 QQ 设置和令牌还在', qq.status === 'saved' && qq.values.ownerQQ === '12345678' && qq.secretSet === true);
 }
 
 async function feverScenario() {
@@ -280,6 +324,9 @@ async function upgradeScenario() {
   check('升级：旧存档的名字还在', init.settings.daughterName === '升级测试');
   await send('还认得我吗');
   check('升级：请求带的是旧存档里的那把 Key', lastAuth === 'Bearer sk-upgrade-test-000000', lastAuth.slice(0, 16));
+  const raw = JSON.parse(settingsFile());
+  const enc = raw.secrets?.deepseek?.enc;
+  check('升级：旧的 Key 字段迁移到新的加密存储', !raw.apiKeyEnc && !raw.apiKeyPlain && (enc ? !settingsFile().includes('sk-upgrade-test') : !!raw.secrets?.deepseek?.plain), Object.keys(raw).join(','));
 }
 
 /** 存档里一条记忆都没有：意识海只显示提示，不能有一团白光 */
@@ -303,6 +350,8 @@ server.listen(0, '127.0.0.1', () => {
     await sleep(300);
     win = BrowserWindow.getAllWindows()[0];
     js = (code) => win.webContents.executeJavaScript(code, true);
+    // 窗口被别的窗口盖住时页面会变成 hidden，动画和视频都停下，测渲染的检查就会误报；测试窗口一直按“看得见”处理
+    win.webContents.setBackgroundThrottling(false);
     win.webContents.on('console-message', (e) => { if (e.level === 'error') consoleErrors.push(e.message); });
     win.webContents.on('render-process-gone', (_e, d) => consoleErrors.push(`渲染进程崩溃：${d.reason}`));
     let code = 1;
