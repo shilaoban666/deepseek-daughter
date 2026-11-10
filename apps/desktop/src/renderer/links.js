@@ -18,6 +18,16 @@ const MODELS = [
   ['deepseek-reasoner', 'deepseek-reasoner（深度思考，更慢更贵）'],
 ];
 
+/** 关于：各组件版本，排查问题时看这里 */
+function aboutCard(v) {
+  if (!v) return '';
+  return `<div class="card plat" id="about">
+      <div class="plat-head"><div class="plat-icon" style="background:linear-gradient(135deg,#4fd6ff,#2a3fb0)">i</div>
+        <div><b>关于</b><small>大肥鱼 ${esc(v.app)}</small></div></div>
+      <p class="mono">Electron ${esc(v.electron)} · Node ${esc(v.node)} · Chromium ${esc(v.chrome)}</p>
+    </div>`;
+}
+
 export function renderLinks(root, S, actions) {
   const st = S.settings;
   const bal = S.vitals?.balance;
@@ -67,7 +77,8 @@ export function renderLinks(root, S, actions) {
         <button class="link" id="lk-backups">查看备份</button>
       </div>
       ${backups && backups.length ? `<ul class="intake-list">${backups.map((b) => `<li><span class="mono">${esc(b.day)}</span><span>${b.files} 个文件</span><b>${(b.bytes / 1024).toFixed(1)} KB</b></li>`).join('')}</ul>` : ''}
-    </div>`;
+    </div>
+    ${aboutCard(S.versions)}`;
 
   const q = (s) => root.querySelector(s);
   q('#lk-save').addEventListener('click', () => {

@@ -35,7 +35,7 @@
 
 ## 快速开始
 
-需要 Windows、Node.js 20 以上，和一把自己的 [DeepSeek API Key](https://platform.deepseek.com/api_keys)。
+需要 Windows、Node.js 22 以上，和一把自己的 [DeepSeek API Key](https://platform.deepseek.com/api_keys)。
 
 ```bash
 cd apps/desktop
@@ -108,7 +108,7 @@ npm run simulate    # 模拟时钟快进 7 天，检查吃饭、睡觉、想法�
 | 部分 | 选型 |
 |---|---|
 | 大模型 | DeepSeek API（直接调用，用户填自己的 Key） |
-| 桌面外壳 | Electron，之后打包成单个 exe |
+| 桌面外壳 | Electron 45（自带 Node 24），打包成单个便携版 exe |
 | 生命核心 | 原生 JavaScript + Node 内置测试框架，不依赖框架 |
 | 记忆 | 本地 JSON（接口已经按 SQLite + 向量检索设计，换后端只改 `memory.js`） |
 | 界面 | 原生 DOM + three.js 全息大脑（真实 MRI 皮层网格） |

@@ -4,6 +4,13 @@ const http = require('http');
 const { app, BrowserWindow } = require('electron');
 
 const scenario = process.env.E2E_SCENARIO;
+
+// 测试窗口经常被别的窗口挡住。Windows 会对完全被遮挡的窗口停掉逐帧渲染，
+// 测性能的 requestAnimationFrame 就永远等不到，截屏也会报“display surface not available”。
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 const requests = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let passed = 0, failed = 0;
@@ -20,7 +27,9 @@ const CONSOLIDATION = JSON.stringify({
 });
 const EXTRACTION = JSON.stringify({ new: [{ text: '小明养了一只橘猫叫大橘', importance: 4, entities: ['大橘'] }], corrections: [] });
 
+let lastAuth = '';
 const server = http.createServer((req, res) => {
+  if (req.headers.authorization) lastAuth = req.headers.authorization;
   if (req.url.includes('balance')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ is_available: true, balance_infos: [{ currency: 'CNY', total_balance: '42.00', granted_balance: '0', topped_up_balance: '42.00' }] }));
@@ -153,8 +162,9 @@ async function mainScenario() {
   const heapStart = await js('performance.memory.usedJSHeapSize');
   await js(`(async()=>{for(let i=0;i<60;i++){window.__go(i%2?'neuro/brain':'settings/general');await new Promise(r=>setTimeout(r,20))}window.__go('neuro/brain')})()`);
   await sleep(1500);
-  const perf = await js(`new Promise((resolve)=>{const o=window.__origRaf;window.__rafReg=0;let frames=0,last=performance.now(),sum=0,max=0;const t0=last;const tick=(now)=>{frames++;sum+=now-last;max=Math.max(max,now-last);last=now;if(now-t0<3000)o(tick);else resolve({perFrame:window.__rafReg/frames,avg:sum/frames,max,vis:document.visibilityState})};o(tick)})`);
+  const perf = await js(`new Promise((resolve)=>{const o=window.__origRaf;window.__rafReg=0;let frames=0,last=performance.now(),sum=0,max=0;const t0=last;const tick=(now)=>{frames++;sum+=now-last;max=Math.max(max,now-last);last=now;if(now-t0<3000)o(tick);else resolve({perFrame:window.__rafReg/frames,avg:sum/frames,max,vis:document.visibilityState})};o(tick);setTimeout(()=>resolve({perFrame:frames?window.__rafReg/frames:0,avg:frames?sum/frames:0,max,vis:'stalled'}),6000)})`);
   check('反复切换后没有叠加渲染循环', perf.perFrame <= 2.6, `${perf.perFrame.toFixed(2)} 次/帧`);
+  check('3D 页面有在渲染', perf.vis !== 'stalled', perf.vis === 'stalled' ? '6 秒内没有一帧' : '');
   check('3D 页面主线程不卡（平均帧间隔 < 60ms）', perf.vis !== 'visible' || perf.avg < 60, `${perf.avg.toFixed(1)}ms，最长 ${perf.max.toFixed(0)}ms`);
   await js("window.__go('settings/general')");
   await sleep(300);
@@ -169,6 +179,8 @@ async function mainScenario() {
   win.setContentSize(1440, 900);
   await js("window.__go('settings/general')");
   check('设置页有 API Key 输入框', await js("!!document.querySelector('#lk-key')"));
+  const about = await js("document.querySelector('#about')?.innerText || ''");
+  check('设置页显示组件版本', about.includes(`大肥鱼 ${require('../package.json').version}`) && about.includes(`Electron ${process.versions.electron}`) && about.includes(`Node ${process.versions.node}`), about.replace(/\s+/g, ' ').slice(0, 80));
 }
 
 async function restartScenario() {
@@ -202,22 +214,32 @@ async function hungryScenario() {
   check('饿的时候回复变短', b.max_tokens === 220, b.max_tokens);
 }
 
-const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario };
+/** 用旧版本 Electron 存下的加密 Key 启动新版本：Key 要能解开，并且真的用它去请求 */
+async function upgradeScenario() {
+  const init = await js('window.fish.init()');
+  check('升级：旧存档的 Key 还在', init.settings.hasKey === true);
+  check('升级：旧存档的名字还在', init.settings.daughterName === '升级测试');
+  await send('还认得我吗');
+  check('升级：请求带的是旧存档里的那把 Key', lastAuth === 'Bearer sk-upgrade-test-000000', lastAuth.slice(0, 16));
+}
+
+const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario, upgrade: upgradeScenario };
 
 server.listen(0, '127.0.0.1', () => {
-  process.env.DEEPSEEK_API_KEY = 'sk-e2e-mock-key-000000';
+  if (scenario !== 'upgrade') process.env.DEEPSEEK_API_KEY = 'sk-e2e-mock-key-000000';
   process.env.DFY_API_BASE = `http://127.0.0.1:${server.address().port}`;
   require('../src/main/main.js');
   app.whenReady().then(async () => {
     await sleep(300);
     win = BrowserWindow.getAllWindows()[0];
     js = (code) => win.webContents.executeJavaScript(code, true);
-    win.webContents.on('console-message', (_e, level, msg) => { if (level >= 3) consoleErrors.push(msg); });
+    win.webContents.on('console-message', (e) => { if (e.level === 'error') consoleErrors.push(e.message); });
     win.webContents.on('render-process-gone', (_e, d) => consoleErrors.push(`渲染进程崩溃：${d.reason}`));
     let code = 1;
     try {
       if (win.webContents.isLoadingMainFrame()) await new Promise((r) => win.webContents.once('did-finish-load', r));
       check('应用启动完成', await waitFor('window.__fishReady === true'));
+      console.log(`  · 冷启动到界面就绪 ${(process.uptime() * 1000).toFixed(0)}ms（Electron ${process.versions.electron}）`);
       await RUN[scenario]();
       check('没有控制台错误', consoleErrors.length === 0, consoleErrors.slice(0, 2).join(' | ').slice(0, 300));
       code = failed ? 1 : 0;
