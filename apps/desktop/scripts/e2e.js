@@ -25,15 +25,27 @@ function seed(dir, patch) {
   store.save('state', s);
 }
 
+// 升级场景：.testdata/upgrade 是用旧版本 Electron 生成的存档（带加密的 Key），只在本机有。
+// 生成方法见 docs/notes/electron-upgrade.md；没有这个目录就跳过。
+const UPGRADE_FIXTURE = path.join(root, '.testdata', 'upgrade');
+
 const SCENARIOS = [
   { name: 'main', dir: 'main' },
   { name: 'restart', dir: 'main' },
   { name: 'fever', dir: 'fever', seed: (b) => { b.fever = true; b.immunity = 40; b.temp = 38.1; } },
   { name: 'hungry', dir: 'hungry', seed: (b, s) => { s.satiety = 10; b.stomach = 0; b.intestine = 0; } },
+  { name: 'upgrade', dir: 'upgrade', copyFrom: UPGRADE_FIXTURE },
 ];
 
-function run({ name, dir, seed: patch }) {
+function run({ name, dir, seed: patch, copyFrom }) {
   const data = path.join(base, dir);
+  if (copyFrom) {
+    if (!fs.existsSync(copyFrom)) {
+      console.log(`E2E ${name}：跳过（没有 ${path.relative(root, copyFrom)}）`);
+      return Promise.resolve(true);
+    }
+    fs.cpSync(copyFrom, data, { recursive: true });
+  }
   fs.mkdirSync(data, { recursive: true });
   if (patch) seed(data, patch);
   const env = { ...process.env, DFY_DATA_DIR: data, E2E_SCENARIO: name };

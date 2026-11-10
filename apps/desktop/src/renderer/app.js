@@ -431,7 +431,7 @@ function refreshSetup() {
 // ---------- 启动 ----------
 (async () => {
   const data = await fish.init();
-  Object.assign(S, { name: data.name, settings: data.settings, history: data.history, memory: data.memory, us: data.us, profile: data.profile, diary: data.diary, meta: data.meta });
+  Object.assign(S, { name: data.name, versions: data.versions, settings: data.settings, history: data.history, memory: data.memory, us: data.us, profile: data.profile, diary: data.diary, meta: data.meta });
   setName(data.name);
   refreshSetup();
   renderHistory();

@@ -28,12 +28,19 @@ if (!app.requestSingleInstanceLock()) {
   let settings = null;
 
   // ---------- 设置（API Key 用系统加密保存） ----------
-  function loadSettings() {
+  // Electron 45 起同步的 encryptString/decryptString 已过时（46 删除），统一用异步接口。
+  // 旧版本用 encryptString 存下的数据，decryptStringAsync 可以直接解开。
+  async function loadSettings() {
     const raw = store.load('settings', {});
     let apiKey = '';
-    if (raw.apiKeyEnc && safeStorage.isEncryptionAvailable()) {
+    if (raw.apiKeyEnc && (await safeStorage.isAsyncEncryptionAvailable())) {
       try {
-        apiKey = safeStorage.decryptString(Buffer.from(raw.apiKeyEnc, 'base64'));
+        const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(Buffer.from(raw.apiKeyEnc, 'base64'));
+        apiKey = result;
+        if (shouldReEncrypt && apiKey) {
+          raw.apiKeyEnc = (await safeStorage.encryptStringAsync(apiKey)).toString('base64');
+          store.save('settings', raw);
+        }
       } catch {
         apiKey = '';
       }
@@ -51,20 +58,20 @@ if (!app.requestSingleInstanceLock()) {
     };
   }
 
-  function saveSettings(next) {
+  async function saveSettings(next) {
     const raw = store.load('settings', {});
     if (typeof next.apiKey === 'string' && next.apiKey.trim()) {
       const key = next.apiKey.trim();
       delete raw.apiKeyEnc;
       delete raw.apiKeyPlain;
-      if (safeStorage.isEncryptionAvailable()) raw.apiKeyEnc = safeStorage.encryptString(key).toString('base64');
+      if (await safeStorage.isAsyncEncryptionAvailable()) raw.apiKeyEnc = (await safeStorage.encryptStringAsync(key)).toString('base64');
       else raw.apiKeyPlain = key;
     }
     for (const k of ['model', 'userName', 'userTitle', 'baseUrl', 'onebotUrl', 'daughterName']) {
       if (typeof next[k] === 'string') raw[k] = next[k].trim();
     }
     store.save('settings', raw);
-    settings = loadSettings();
+    settings = await loadSettings();
   }
 
   const publicSettings = () => ({
@@ -101,7 +108,8 @@ if (!app.requestSingleInstanceLock()) {
       },
     });
     win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-    if (process.env.DFY_SHOT) win.webContents.on('console-message', (_e, level, msg, line, src) => console.log(`[renderer:${level}] ${msg} (${src}:${line})`));
+    // Electron 35 起事件参数改成一个对象，level 是字符串
+    if (process.env.DFY_SHOT) win.webContents.on('console-message', (e) => console.log(`[renderer:${e.level}] ${e.message} (${e.sourceId}:${e.lineNumber})`));
     // 外部链接用系统浏览器打开，不在应用里跳转
     win.webContents.setWindowOpenHandler(({ url }) => {
       if (/^https?:\/\//.test(url)) shell.openExternal(url);
@@ -146,6 +154,9 @@ if (!app.requestSingleInstanceLock()) {
     for (const r of list) {
       await win.webContents.executeJavaScript(`window.__go(${JSON.stringify(r)})`);
       await wait(Number(process.env.DFY_SHOT_WAIT) || 1500);
+      // 隐藏窗口要到截屏时才重绘，第一次拿到的是上一页的画面，所以连拍两次取第二张
+      await win.webContents.capturePage();
+      await wait(250);
       const img = await win.webContents.capturePage();
       fs.writeFileSync(path.join(dir, `${r.replace('/', '-')}.png`), img.toPNG());
     }
@@ -153,11 +164,11 @@ if (!app.requestSingleInstanceLock()) {
   }
 
   // ---------- 启动 ----------
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     config.init({ dir: app.getPath('userData') });
     const dataDir = path.join(app.getPath('userData'), 'data');
     store = new JsonStore(dataDir);
-    settings = loadSettings();
+    settings = await loadSettings();
     daughter = new Daughter({ store, getSettings: () => settings, dataDir });
 
     daughter.on('vitals', (v, events) => send('vitals', v, events));
@@ -181,7 +192,9 @@ if (!app.requestSingleInstanceLock()) {
 
     const heartbeatMs = (config.get().heartbeatMinutes || 1) * 60 * 1000;
 
-    ipcMain.handle('init', () => ({ name: nameOf(settings), appName: APP_NAME, settings: publicSettings(), ...daughter.snapshot() }));
+    // app.getVersion() 在用别的入口启动时（比如端到端测试）会退回 Electron 自己的版本号，直接读 package.json
+    const versions = { app: require('../../package.json').version, electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome };
+    ipcMain.handle('init', () => ({ name: nameOf(settings), appName: APP_NAME, settings: publicSettings(), versions, ...daughter.snapshot() }));
     ipcMain.handle('refresh-balance', () => daughter.refreshBalance());
     ipcMain.handle('send', async (_e, text) => {
       if (typeof text !== 'string' || !text.trim()) return { ok: false };
@@ -192,8 +205,8 @@ if (!app.requestSingleInstanceLock()) {
         return { ok: false, error: err.message };
       }
     });
-    ipcMain.handle('save-settings', (_e, next) => {
-      saveSettings(next || {});
+    ipcMain.handle('save-settings', async (_e, next) => {
+      await saveSettings(next || {});
       daughter.refreshBalance().catch(() => {});
       return publicSettings();
     });

@@ -27,7 +27,9 @@ const CONSOLIDATION = JSON.stringify({
 });
 const EXTRACTION = JSON.stringify({ new: [{ text: '小明养了一只橘猫叫大橘', importance: 4, entities: ['大橘'] }], corrections: [] });
 
+let lastAuth = '';
 const server = http.createServer((req, res) => {
+  if (req.headers.authorization) lastAuth = req.headers.authorization;
   if (req.url.includes('balance')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ is_available: true, balance_infos: [{ currency: 'CNY', total_balance: '42.00', granted_balance: '0', topped_up_balance: '42.00' }] }));
@@ -177,6 +179,8 @@ async function mainScenario() {
   win.setContentSize(1440, 900);
   await js("window.__go('settings/general')");
   check('设置页有 API Key 输入框', await js("!!document.querySelector('#lk-key')"));
+  const about = await js("document.querySelector('#about')?.innerText || ''");
+  check('设置页显示组件版本', about.includes(`大肥鱼 ${require('../package.json').version}`) && about.includes(`Electron ${process.versions.electron}`) && about.includes(`Node ${process.versions.node}`), about.replace(/\s+/g, ' ').slice(0, 80));
 }
 
 async function restartScenario() {
@@ -210,17 +214,26 @@ async function hungryScenario() {
   check('饿的时候回复变短', b.max_tokens === 220, b.max_tokens);
 }
 
-const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario };
+/** 用旧版本 Electron 存下的加密 Key 启动新版本：Key 要能解开，并且真的用它去请求 */
+async function upgradeScenario() {
+  const init = await js('window.fish.init()');
+  check('升级：旧存档的 Key 还在', init.settings.hasKey === true);
+  check('升级：旧存档的名字还在', init.settings.daughterName === '升级测试');
+  await send('还认得我吗');
+  check('升级：请求带的是旧存档里的那把 Key', lastAuth === 'Bearer sk-upgrade-test-000000', lastAuth.slice(0, 16));
+}
+
+const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario, upgrade: upgradeScenario };
 
 server.listen(0, '127.0.0.1', () => {
-  process.env.DEEPSEEK_API_KEY = 'sk-e2e-mock-key-000000';
+  if (scenario !== 'upgrade') process.env.DEEPSEEK_API_KEY = 'sk-e2e-mock-key-000000';
   process.env.DFY_API_BASE = `http://127.0.0.1:${server.address().port}`;
   require('../src/main/main.js');
   app.whenReady().then(async () => {
     await sleep(300);
     win = BrowserWindow.getAllWindows()[0];
     js = (code) => win.webContents.executeJavaScript(code, true);
-    win.webContents.on('console-message', (_e, level, msg) => { if (level >= 3) consoleErrors.push(msg); });
+    win.webContents.on('console-message', (e) => { if (e.level === 'error') consoleErrors.push(e.message); });
     win.webContents.on('render-process-gone', (_e, d) => consoleErrors.push(`渲染进程崩溃：${d.reason}`));
     let code = 1;
     try {

@@ -205,27 +205,33 @@ A 升级 Electron ──▶ B 三个修复 ──▶ C 鲸鱼娘角色 ──▶
 
 分支：`feature/electron-45`
 
+> **2026-11-10 已完成。** 记录见 [docs/notes/electron-upgrade.md](notes/electron-upgrade.md)。和计划不同的两处：
+> - A1 发现端到端测试卡住和截屏报错都是窗口被遮挡导致的，已在测试入口里关掉遮挡检测；截图工具“拍到上一页”的问题一并修了。
+> - A4 打包后体积从 77.5 MB 涨到 113.7 MB（全部是 Electron 本身），只保留中文、英文语言包后是 105.9 MB。
+> - 另外 Electron 45 把同步的 `safeStorage` 接口标为过时（46 删除），提前换成了异步接口。
+
+
 ### 任务 A1：记录升级前的基线
 
 目的：升级后出了问题，能分清是升级造成的，还是原来就有的。
 
-- [ ] 在屏幕亮着、没锁屏的情况下跑 3 次 `npm run e2e`，把每次的通过数、失败项记到 `docs/notes/electron-upgrade.md`（新建）。
-- [ ] 如果 3 次里“切换页面 p95”和“截屏报错”都不再出现，结论写“和屏幕状态有关”，并在 `scripts/e2e.js` 开头加一句运行前提的说明。
-- [ ] 如果仍然出现，先在旧版本上修掉再升级：
+- [x] 在屏幕亮着、没锁屏的情况下跑 3 次 `npm run e2e`，把每次的通过数、失败项记到 `docs/notes/electron-upgrade.md`（新建）。
+- [x] 如果 3 次里“切换页面 p95”和“截屏报错”都不再出现，结论写“和屏幕状态有关”，并在 `scripts/e2e.js` 开头加一句运行前提的说明。
+- [x] 如果仍然出现，先在旧版本上修掉再升级：
     - 截屏报错：`scripts/e2e-main.js:88` 的 `win.webContents.capturePage(r)` 改成在页面里读画布像素（给 `pixelSpread` 加一条不走截屏的路径：`canvas.getContext('webgl2').readPixels`），失败时再回退到截屏。
     - p95 超时：在 `e2e-main.js` 的计时循环里打印每个路由各自的耗时，找出慢的页面再处理。
-- [ ] 记录：`npm run dist` 产物大小（上次是 74 MB）、冷启动到 `window.__fishReady` 的时间（跑 3 次取中位数）。
-- [ ] 准备一份“旧版本存档”：用旧版本启动一次，数据目录设到 `apps/desktop/.testdata/upgrade`（`DFY_DATA_DIR`），在设置页填一个假 Key `sk-upgrade-test-000000`，退出。这个目录留给 A4 用。
+- [x] 记录：`npm run dist` 产物大小（上次是 74 MB）、冷启动到 `window.__fishReady` 的时间（跑 3 次取中位数）。
+- [x] 准备一份“旧版本存档”：用旧版本启动一次，数据目录设到 `apps/desktop/.testdata/upgrade`（`DFY_DATA_DIR`），在设置页填一个假 Key `sk-upgrade-test-000000`，退出。这个目录留给 A4 用。
 
 ### 任务 A2：升级依赖
 
 改动文件：`apps/desktop/package.json`、`package-lock.json`。
 
-- [ ] `devDependencies.electron` 改成 `"45.2.3"`（不带 `^`）。
-- [ ] `devDependencies.electron-builder` 改成 `"26.18.0"`。
-- [ ] `engines.node` 改成 `">=22"`。单元测试用系统 Node 跑，这台机器是 22.23.2，不需要 24。
-- [ ] `npm install`。国内镜像已经在 `.npmrc` 里。
-- [ ] 确认版本：
+- [x] `devDependencies.electron` 改成 `"45.2.3"`（不带 `^`）。
+- [x] `devDependencies.electron-builder` 改成 `"26.18.0"`。
+- [x] `engines.node` 改成 `">=22"`。单元测试用系统 Node 跑，这台机器是 22.23.2，不需要 24。
+- [x] `npm install`。国内镜像已经在 `.npmrc` 里。
+- [x] 确认版本：
 
 ```bash
 npx electron -e "console.log(process.versions.electron, process.versions.node, process.versions.chrome)"
@@ -239,23 +245,23 @@ Electron 官方的破坏性变更清单在 `https://www.electronjs.org/docs/late
 
 我们用到的全部 Electron 接口：`app`（`setName`、`setPath`、`getPath`、`requestSingleInstanceLock`、`setAppUserModelId`、`whenReady`、`quit`）、`BrowserWindow`（构造参数、`loadFile`、`isFocused`、`flashFrame`、`show`、`restore`）、`webContents`（`send`、`on('console-message')`、`on('will-navigate')`、`setWindowOpenHandler`、`executeJavaScript`、`capturePage`、`isLoadingMainFrame`）、`ipcMain.handle`、`Notification`、`safeStorage`、`shell.openExternal`、`contextBridge`、`ipcRenderer`。
 
-- [ ] 把清单里涉及上面接口的条目抄到 `docs/notes/electron-upgrade.md`，每条写“受影响 / 不受影响”和理由。
-- [ ] 已知要改的一处：`console-message` 事件。新版本只传一个事件对象，字段是 `message`、`level`（字符串）、`lineNumber`、`sourceId`。要改三个地方：
+- [x] 把清单里涉及上面接口的条目抄到 `docs/notes/electron-upgrade.md`，每条写“受影响 / 不受影响”和理由。
+- [x] 已知要改的一处：`console-message` 事件。新版本只传一个事件对象，字段是 `message`、`level`（字符串）、`lineNumber`、`sourceId`。要改三个地方：
     - `src/main/main.js:104`
     - `scripts/e2e-main.js` 里收集控制台错误的地方
     - 写成兼容写法：`(e, level, msg) => { const m = e.message ?? msg; ... }`
-- [ ] 检查 `scripts/e2e.js`、`scripts/shots.js` 里的启动参数（`--no-sandbox`、`--disable-gpu`）在新版本是否还有效。
-- [ ] 检查 `src/renderer/vendor/three`（0.170）在 Chromium 156 下有没有控制台警告；有就记下来，不在这个任务里升级 three。
+- [x] 检查 `scripts/e2e.js`、`scripts/shots.js` 里的启动参数（`--no-sandbox`、`--disable-gpu`）在新版本是否还有效。
+- [x] 检查 `src/renderer/vendor/three`（0.170）在 Chromium 156 下有没有控制台警告；有就记下来，不在这个任务里升级 three。
 
 ### 任务 A4：验证
 
-- [ ] `npm test`：101 项全过。
-- [ ] `npm run e2e`：结果不能比 A1 的基线差。
-- [ ] `npm run shots`：24 个页面都有图，逐张和升级前对比，重点看 3D 大脑、意识海、3D 鲸鱼。
-- [ ] 旧存档测试：用 A1 准备的 `.testdata/upgrade` 目录启动新版本，设置页应显示 Key“已保存”。给 `scripts/e2e.js` 加一个场景 `upgrade` 自动检查这一条（场景的数据目录指向该目录的副本，检查 `settings.hasKey === true`）。
-- [ ] `npm run dist`，双击产物，确认能启动、能聊天（用 `scripts/mock-deepseek.js`）。记录产物大小和冷启动时间，和 A1 对比，写进笔记。
-- [ ] 设置页最下面加一行“关于”：大肥鱼版本、Electron、Node、Chromium 版本。数据走 `init` 的返回值，新增字段 `versions`。以后排查问题用得上。
-- [ ] 更新文档：README 的“需要 Node.js 20 以上”改成 22；`实现进度.md` 的技术栈一行。
+- [x] `npm test`：101 项全过。
+- [x] `npm run e2e`：结果不能比 A1 的基线差。
+- [x] `npm run shots`：24 个页面都有图，逐张和升级前对比，重点看 3D 大脑、意识海、3D 鲸鱼。
+- [x] 旧存档测试：用 A1 准备的 `.testdata/upgrade` 目录启动新版本，设置页应显示 Key“已保存”。给 `scripts/e2e.js` 加一个场景 `upgrade` 自动检查这一条（场景的数据目录指向该目录的副本，检查 `settings.hasKey === true`）。
+- [x] `npm run dist`，双击产物，确认能启动、能聊天（用 `scripts/mock-deepseek.js`）。记录产物大小和冷启动时间，和 A1 对比，写进笔记。
+- [x] 设置页最下面加一行“关于”：大肥鱼版本、Electron、Node、Chromium 版本。数据走 `init` 的返回值，新增字段 `versions`。以后排查问题用得上。
+- [x] 更新文档：README 的“需要 Node.js 20 以上”改成 22；`实现进度.md` 的技术栈一行。
 
 **阶段 A 验收**：上面 6 项检查全过；`docs/notes/electron-upgrade.md` 里有变更对照和前后数据。
 
