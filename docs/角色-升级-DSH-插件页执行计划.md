@@ -886,8 +886,8 @@ npm install --registry https://registry.npmmirror.com \
 - 问题 4 发现去不掉终端组件：停下来找你，一起决定是接受它（配置里保证它不被调用）还是换别的组合方式。
 - 问题 5 包增大超过 80 MB：记下最大的几个依赖，找你商量裁剪。
 
-- [ ] 做完 6 个实验，写 `docs/notes/dsh-spike.md`：每个问题的结论、最小 `cordis.yml` 全文、踩到的坑。
-- [ ] 把请求体夹具放进 `apps/desktop/test/fixtures/`。
+- [x] 做完 6 个实验，写 `docs/notes/dsh-spike.md`：每个问题的结论、最小 `cordis.yml` 全文、踩到的坑。
+- [x] 把请求体夹具放进 `apps/desktop/test/fixtures/`。
 
 ### 任务 E1：生命网关
 
@@ -913,10 +913,10 @@ function parseRequest(body) {}
 
 测试：
 
-- [ ] `网关：取最后一句用户消息，忽略系统提示词和历史`
-- [ ] `网关：没有用户消息的请求不会被当成聊天`
-- [ ] `网关：标题、压缩这类请求被识别出来`（用 E0 的夹具）
-- [ ] `网关：数组形式的内容只取文字`
+- [x] `网关：取最后一句用户消息，忽略系统提示词和历史`
+- [x] `网关：没有用户消息的请求不会被当成聊天`
+- [x] `网关：标题、压缩这类请求被识别出来`（用 E0 的夹具）
+- [x] `网关：数组形式的内容只取文字`
 
 **`gateway.js`（HTTP 服务）**
 
@@ -933,11 +933,11 @@ function parseRequest(body) {}
 
 测试（起真实的服务，用 `fetch` 打）：
 
-- [ ] `网关：令牌不对返回 401`
-- [ ] `网关：流式回复能被 deepseek.js 的解析器读出来`：直接用 `deepseek.chat` 当客户端调网关，断言拿到完整文本和用量。这一条保证格式不会写错。
-- [ ] `网关：回复里没有 tool_calls`
-- [ ] `网关：非聊天请求不会进入她的记忆`：断言 `daughter.history` 长度不变。
-- [ ] `网关：只监听本机`：`server.address().address === '127.0.0.1'`。
+- [x] `网关：令牌不对返回 401`
+- [x] `网关：流式回复能被 deepseek.js 的解析器读出来`：直接用 `deepseek.chat` 当客户端调网关，断言拿到完整文本和用量。这一条保证格式不会写错。
+- [x] `网关：回复里没有 tool_calls`
+- [x] `网关：非聊天请求不会进入她的记忆`：断言 `daughter.history` 长度不变。
+- [x] `网关：只监听本机`：`server.address().address === '127.0.0.1'`。
 
 ### 任务 E2：`Daughter.replyFrom`
 
@@ -955,11 +955,11 @@ function parseRequest(body) {}
 replyFrom(m) {}
 ```
 
-- [ ] 把 `reply()` 的主体抽成内部方法 `_converse({ text, channel, onDelta })`，`reply()` 和 `replyFrom()` 都调用它。重构前后 `core.test.js` 原有用例必须全过。
-- [ ] `replyFrom` 的行为和 `reply` 完全一样（身体反应、检索记忆、提炼记忆、预算检查），只多一件事：情景记忆和聊天记录打上 `channel` 标签。
-- [ ] 新事件 `channel-message`（给界面）：`{ channel, text, reply, at }`。`main.js` 转发，`preload.js` 加 `onChannelMessage`。桌面聊天栏同步显示这段对话，消息旁边带一个小标“经内核”。
-- [ ] 这一期只接受主人的消息。陌生人、群聊的处理（隐私隔离、限流）在阶段 G 加，方法签名到时再扩展。
-- [ ] 测试：
+- [x] 把 `reply()` 的主体抽成内部方法 `_converse({ text, channel, onDelta })`，`reply()` 和 `replyFrom()` 都调用它。重构前后 `core.test.js` 原有用例必须全过。
+- [x] `replyFrom` 的行为和 `reply` 完全一样（身体反应、检索记忆、提炼记忆、预算检查），只多一件事：情景记忆和聊天记录打上 `channel` 标签。
+- [x] 新事件 `channel-message`（给界面）：`{ channel, text, reply, at }`。`main.js` 转发，`preload.js` 加 `onChannelMessage`。桌面聊天栏同步显示这段对话，消息旁边带一个小标“经内核”。
+- [x] 这一期只接受主人的消息。陌生人、群聊的处理（隐私隔离、限流）在阶段 G 加，方法签名到时再扩展。
+- [x] 测试：
     - `通道：经内核说的话，桌面聊天栏里也有，记忆里也有`
     - `通道：桌面聊天和内核消息排队处理，不会交错`
     - `通道：预算用完时经内核也只回“累了”`
@@ -978,10 +978,10 @@ replyFrom(m) {}
 
 测试：
 
-- [ ] `DSH 配置：不包含任何能动电脑的插件`：生成的 YAML 里不出现这些字符串：`dsh-tool-bash`、`dsh-tool-pwsh`、`dsh-terminal`、`dsh-tool-str-replace-editor`、`dsh-fs-local`、`dsh-tool-web`、`dsh-web-fetch`、`dsh-subagent`、`dsh-tool-jobs`、`dsh-mcp-client`、`dsh-tool-skill`、`dsh-tool-cordis`。（如果 E0 问题 4 的结论是某一项去不掉，按和你商量的结果调整这个清单，并在测试里写明原因。）
-- [ ] `DSH 配置：模型地址只能是本机`：`baseURL` 以 `http://127.0.0.1:` 开头。
-- [ ] `DSH 配置：YAML 里没有明文密钥`
-- [ ] `DSH 配置：插件只能来自白名单`：解析 YAML，每个 `name` 都在 `dsh/config.js` 导出的 `ALLOWED_PLUGINS` 里。
+- [x] `DSH 配置：不包含任何能动电脑的插件`：生成的 YAML 里不出现这些字符串：`dsh-tool-bash`、`dsh-tool-pwsh`、`dsh-terminal`、`dsh-tool-str-replace-editor`、`dsh-fs-local`、`dsh-tool-web`、`dsh-web-fetch`、`dsh-subagent`、`dsh-tool-jobs`、`dsh-mcp-client`、`dsh-tool-skill`、`dsh-tool-cordis`。（如果 E0 问题 4 的结论是某一项去不掉，按和你商量的结果调整这个清单，并在测试里写明原因。）
+- [x] `DSH 配置：模型地址只能是本机`：`baseURL` 以 `http://127.0.0.1:` 开头。
+- [x] `DSH 配置：YAML 里没有明文密钥`
+- [x] `DSH 配置：插件只能来自白名单`：解析 YAML，每个 `name` 都在 `dsh/config.js` 导出的 `ALLOWED_PLUGINS` 里。
 
 **`dsh/runtime.js`：启动、守护、关闭**
 
@@ -1006,59 +1006,69 @@ createDshRuntime({ userData, gateway, log }) → {
 
 测试（`test/dsh-runtime.test.js`，用一个假的子进程脚本代替真 DSH）：
 
-- [ ] `DSH 运行时：子进程退出后会重启，间隔越来越长`（用假时钟）
-- [ ] `DSH 运行时：连续失败 5 次后停止，状态是 crashed`
-- [ ] `DSH 运行时：传给子进程的环境变量里没有 DeepSeek Key`
-- [ ] `DSH 运行时：stop 之后没有残留进程`
+- [x] `DSH 运行时：子进程退出后会重启，间隔越来越长`（用假时钟）
+- [x] `DSH 运行时：连续失败 5 次后停止，状态是 crashed`
+- [x] `DSH 运行时：传给子进程的环境变量里没有 DeepSeek Key`
+- [x] `DSH 运行时：stop 之后没有残留进程`
 
 **接进 `main.js`**
 
-- [ ] 启动顺序：`daughter` → `gateway.start()`；`dsh` 按需启动。
-- [ ] IPC：`dsh-status`、`dsh-start`、`dsh-stop`、`dsh-restart`、`dsh-say`；推送：`dsh`（状态变化）。`preload.js` 对应加方法。
+- [x] 启动顺序：`daughter` → `gateway.start()`；`dsh` 按需启动。
+- [x] IPC：`dsh-status`、`dsh-start`、`dsh-stop`、`dsh-restart`、`dsh-say`；推送：`dsh`（状态变化）。`preload.js` 对应加方法。
 
 ### 任务 E4：内核页
 
 改动：`src/renderer/nav-data.mjs`、`src/renderer/views/explore.js`、`test/us.test.js`。
 
-- [ ] 「发现探索」加第二个 Tab“内核”（路由 `explore/kernel`）。`test/us.test.js` 里“24 个路由”改成 25。
-- [ ] 页面内容：
+- [x] 「发现探索」加第二个 Tab“内核”（路由 `explore/kernel`）。`test/us.test.js` 里“24 个路由”改成 25。
+- [x] 页面内容：
     - 状态卡：未运行 / 启动中 / 运行中 / 出错，加“启动”“停止”“重新启动”按钮。
     - 信息：DSH 版本、进程号、已运行时间、重启次数、最近一次错误、数据目录。
     - 已加载的插件列表（来自 `status().plugins`）。
     - 一段固定说明：“内核里没有装任何能执行命令或读写文件的工具。她的回答来自她自己的大脑，内核只负责收发。”
     - **“通过内核跟她说一句话”**：一个输入框和发送按钮。回复显示在下面，同时出现在右侧聊天栏（带“经内核”小标）。内核没启动时点发送会先启动它。
-- [ ] 插件页（阶段 D）顶部加一行内核状态的小字，点了跳到内核页。
+- [x] 插件页（阶段 D）顶部加一行内核状态的小字，点了跳到内核页。
 
 ### 任务 E5：端到端测试
 
 新场景 `kernel`（用假 DeepSeek）：
 
-- [ ] `内核：启动成功`：点“启动”，`dsh-status` 的 `state === 'running'`。
-- [ ] `内核：通过内核说一句话，收到她的回复`
-- [ ] `内核：这句话出现在聊天栏，带“经内核”标记`
-- [ ] `内核：这句话进了记忆页`
-- [ ] `内核：假 DeepSeek 收到的提示词里有她的人设和身体状态`：证明回答确实来自生命核心，不是 DSH 自己编的。
-- [ ] `内核：杀掉内核进程后自动恢复`：10 秒内状态回到 `running`，再说一句仍有回复。
-- [ ] `内核：退出应用后没有残留进程`（在 `e2e.js` 里检查）。
-- [ ] `内核：你自己的 DSH 目录没被动过`：测试前后比较 `~/.dsh` 顶层目录的修改时间（目录不存在则跳过）。
+- [x] `内核：启动成功`：点“启动”，`dsh-status` 的 `state === 'running'`。
+- [x] `内核：通过内核说一句话，收到她的回复`
+- [x] `内核：这句话出现在聊天栏，带“经内核”标记`
+- [x] `内核：这句话进了记忆页`
+- [x] `内核：假 DeepSeek 收到的提示词里有她的人设和身体状态`：证明回答确实来自生命核心，不是 DSH 自己编的。
+- [x] `内核：杀掉内核进程后自动恢复`：10 秒内状态回到 `running`，再说一句仍有回复。
+- [x] `内核：退出应用后没有残留进程`（在 `e2e.js` 里检查）。
+- [x] `内核：你自己的 DSH 目录没被动过`：测试前后比较 `~/.dsh` 顶层目录的修改时间（目录不存在则跳过）。
 
 ### 任务 E6：打包
 
 改动：`apps/desktop/package.json`。
 
-- [ ] DSH 相关的包放进 `dependencies`，版本写死：`@deepseek-ai/dsh-sdk-jsonrpc-demo`、`@deepseek-ai/dsh-sdk-client`、E0 确定的最小插件集合。
-- [ ] `build.asarUnpack` 按 E0 问题 5 的结论填写。
-- [ ] `build.files` 加上 `dsh/**/*`。
-- [ ] `npm run dist`；双击产物；在内核页说一句话。
-- [ ] 记录产物大小。加上鲸鱼娘素材后目标不超过 200 MB。
-- [ ] `docs/第三方许可.md` 登记所有随包分发的 DSH 包（名字、版本、许可证）。打包时把各包的 LICENSE 文件一起带上。
+- [x] DSH 相关的包放进 `dependencies`，版本写死：`@deepseek-ai/dsh-sdk-jsonrpc-demo`、`@deepseek-ai/dsh-sdk-client`、E0 确定的最小插件集合。
+- [x] `build.asarUnpack` 按 E0 问题 5 的结论填写。
+- [x] `build.files` 加上 `dsh/**/*`。
+- [x] `npm run dist`；双击产物；在内核页说一句话。
+- [x] 记录产物大小。加上鲸鱼娘素材后目标不超过 200 MB。
+- [x] `docs/第三方许可.md` 登记所有随包分发的 DSH 包（名字、版本、许可证）。打包时把各包的 LICENSE 文件一起带上。
 
 ### 任务 E7：文档
 
-- [ ] `设计文档.md` 第 4 节：把“生命核心是 DSH 插件 dsh-plugin-life”改成“生命网关”的说法；`docs/images/src/kernel.svg` 相应修改并重新导出 PNG。
-- [ ] `实现进度.md`：§11、§13 两行更新；“还没做的”里删掉“自己写 OneBot v11 客户端”。
-- [ ] `执行计划.md` 的“当前进度”一节整体重写（现在还写着 13 个测试）。
-- [ ] README 的架构一节。
+- [x] `设计文档.md` 第 4 节：把“生命核心是 DSH 插件 dsh-plugin-life”改成“生命网关”的说法；`docs/images/src/kernel.svg` 相应修改并重新导出 PNG。
+- [x] `实现进度.md`：§11、§13 两行更新；“还没做的”里删掉“自己写 OneBot v11 客户端”。
+- [x] `执行计划.md` 的“当前进度”一节整体重写（现在还写着 13 个测试）。
+- [x] README 的架构一节。
+
+完成记录（2026-11-10）：单元测试 172 项全过；端到端 8 个场景全过（新增 `kernel` 场景 17 项）；打包后的便携版在内核页说话能收到她的回复，退出后没有残留进程；`~/.dsh` 前后没有变化。和计划不一样的地方：
+
+- **版本**：计划写的三个包分属两条发布线，装不上。改用 npm `latest` 标签的 0.0.1 线（jsonrpc-demo、jsonrpc-server、llm-deepseek、agent-spine-demo 都是 0.0.1-rc.5，sdk-client 0.0.1-rc.1），没有用 sdk-minimal。0.2.2 线的 sdk-client 依赖完整的 DSH（832 MB），不可接受。详见 `docs/notes/dsh-spike.md`。
+- **E0 问题 3**：最小配置下 DSH 只发聊天请求，没有余额、模型列表接口要实现，网关其他路径一律 404。
+- **E1**：`parseRequest(body, headers)` 多收一个请求头参数（压缩请求靠 `x-deepseek-harness-compact` 头识别）；最后一条不是用户消息（比如工具结果）就判为非聊天。另外加了一条计划里没有的保护：DSH 出错会重试同一个请求，网关对同一会话同一句话 2 分钟内只让她听一次。回复里的用量写 0，真实 Token 记在她自己的账上。
+- **E3**：子进程参数多一个 `--expose-internals`，插件名才能从安装目录解析（`cordis.yml` 在数据目录里）。每句话用一个新的 DSH 会话，DSH 那边不累积历史。
+- **E6**：electron-builder 不带 peer 依赖，运行要用的 64 个包全部写进 `dependencies` 并写死版本，单元测试保证两边一致。安装包 164.9 MB（之前 163.6 MB）。
+- **E5**：端到端测试的结束方式从 `app.exit()` 改成正常的 `app.quit()`，“退出后没有残留进程”测的是真实的退出流程。
+- **E4**：设置页的“关于”加了一行 DSH 的版本和许可证。
 
 **阶段 E 验收**：
 

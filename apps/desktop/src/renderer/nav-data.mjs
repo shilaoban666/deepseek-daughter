@@ -7,7 +7,7 @@ export const NAV = [
   { id: 'neuro', label: '神经活动', icon: '⌬', tabs: [{ id: 'brain', label: '大脑3D' }, { id: 'system', label: '神经系统' }, { id: 'transmitters', label: '神经递质' }] },
   { id: 'metabolism', label: '代谢活动', icon: '◍', tabs: [{ id: 'digestion', label: '消化活动' }, { id: 'breath', label: '呼吸与心率' }, { id: 'fluid', label: '体液系统' }, { id: 'endocrine', label: '内分泌系统' }, { id: 'urinary', label: '泌尿系统' }, { id: 'reproductive', label: '生殖系统' }] },
   { id: 'immunity', label: '免疫活动', icon: '⛨', tabs: [{ id: 'lymph', label: '淋巴系统' }, { id: 'regulation', label: '免疫调节' }] },
-  { id: 'explore', label: '发现探索', icon: '✦', tabs: [{ id: 'platforms', label: '平台插件' }] },
+  { id: 'explore', label: '发现探索', icon: '✦', tabs: [{ id: 'platforms', label: '平台插件' }, { id: 'kernel', label: '内核' }] },
   { id: 'settings', label: '设置', icon: '⚙', tabs: [{ id: 'general', label: '通用' }] },
 ];
 

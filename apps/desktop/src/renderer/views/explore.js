@@ -4,6 +4,7 @@
 
 import { esc } from '../util.js';
 import { lead } from './ui.js';
+import * as kernel from './kernel.js';
 
 const STATUS_TEXT = {
   unset: '还没设置',
@@ -52,6 +53,7 @@ function page() {
   const group = (g, title) => `<div class="plat-group"><div class="plat-group-t">${title}</div><div class="plat-grid">${platforms.filter((p) => p.group === g).map(card).join('')}</div></div>`;
   return (
     lead('她能住进的地方', '这一期先把设置准备好，连接功能下一期开放') +
+    kernel.kernelLine(kernel.kernelStatus()) +
     `<div class="plat-summary">已保存设置 ${saved} 个 · 即将开放 ${ready} 个 · 未开放 ${planned} 个</div>` +
     group('chat', '聊天') +
     group('content', '内容')
@@ -208,9 +210,17 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && openId && currentEl?.querySelector('.drawer')) close();
 });
 
-export function render(el, _tab, ctx) {
+export function render(el, tab, ctx) {
+  if (tab === 'kernel') return kernel.render(el, ctx);
   currentEl = el;
   currentCtx = ctx;
+  // 顶部那行内核状态：拿一次，之后跟着变化重画那一行
+  kernel.ensureKernel(ctx, () => {
+    const line = currentEl?.querySelector('.kernel-line');
+    if (line) line.outerHTML = kernel.kernelLine(kernel.kernelStatus());
+  }).then(() => {
+    if (currentEl === el && el.querySelector('.plat-grid') && !el.querySelector('.kernel-line')) paint();
+  });
   // 抽屉开着时，页面心跳不重画（不然滚动位置和动画会被打断）；从别的页面回来时抽屉关上
   if (openId && el.querySelector('.drawer')) return;
   if (!el.querySelector('.plat-grid')) openId = null;

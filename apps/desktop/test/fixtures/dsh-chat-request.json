@@ -1,0 +1,38 @@
+{
+  "_note": "DSH 0.0.1-rc.5 的 DeepSeek 适配器发给网关的真实请求体（E0 实验抓取，2026-11-10）。请求头里的 user-id/session-id 已换成占位。",
+  "headers": {
+    "host": "127.0.0.1:18901",
+    "connection": "keep-alive",
+    "authorization": "Bearer tok-spi…",
+    "content-type": "application/json",
+    "accept": "text/event-stream",
+    "user-agent": "deepseek-harness/0.0.1-rc.5 (+https://github.com/deepseek-ai/deepseek-harness)",
+    "x-deepseek-harness-user-id": "<anonymous-id>",
+    "x-deepseek-harness-session-id": "<session-id>",
+    "accept-language": "*",
+    "sec-fetch-mode": "cors",
+    "accept-encoding": "gzip, deflate",
+    "content-length": "218"
+  },
+  "body": {
+    "model": "deepseek-chat",
+    "messages": [
+      {
+        "role": "system",
+        "content": "gateway"
+      },
+      {
+        "role": "user",
+        "content": "你好 0"
+      }
+    ],
+    "stream": true,
+    "stream_options": {
+      "include_usage": true
+    },
+    "thinking": {
+      "type": "disabled"
+    },
+    "max_tokens": 256000
+  }
+}

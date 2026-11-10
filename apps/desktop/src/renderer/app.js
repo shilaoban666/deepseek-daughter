@@ -279,9 +279,18 @@ function bubble(role, text, cls = '') {
   msgs.appendChild(el);
   return el;
 }
+/** 不是在桌面聊天栏里说的话，旁边带个小标（这一期只有“经内核”） */
+const CHANNEL_WORD = { kernel: '经内核' };
+function channelTag(channel, mine) {
+  const t = document.createElement('div');
+  t.className = `channel-tag ${mine ? 'me' : ''}`;
+  t.textContent = CHANNEL_WORD[channel] || `经${channel}`;
+  msgs.appendChild(t);
+}
 /** 她的一条回复按换行拆成几条气泡，像 QQ 上连发几句 */
-function herLines(text, at, proactive) {
+function herLines(text, at, proactive, channel) {
   stamp(at || Date.now());
+  if (channel) channelTag(channel, false);
   if (proactive) {
     const t = document.createElement('div');
     t.className = 'proactive-tag';
@@ -297,8 +306,9 @@ function renderHistory() {
   for (const m of S.history) {
     if (m.role === 'user') {
       stamp(m.at);
+      if (m.channel) channelTag(m.channel, true);
       bubble('user', m.content);
-    } else herLines(m.content, m.at, m.proactive);
+    } else herLines(m.content, m.at, m.proactive, m.channel);
   }
   scrollChat();
 }
@@ -368,6 +378,16 @@ fish.onProactive((msg) => {
   pet?.onEvent({ type: 'proactive' });
   S.history.push(msg);
   herLines(msg.content, msg.at, true);
+  scrollChat();
+});
+// 经内核（以后是 QQ、微信）说的话：两边各一条，带小标
+fish.onChannelMessage((m) => {
+  S.history.push({ role: 'user', content: m.text, at: m.at, channel: m.channel }, { role: 'assistant', content: m.reply, at: m.at, id: m.id, channel: m.channel });
+  stamp(m.at);
+  channelTag(m.channel, true);
+  bubble('user', m.text);
+  herLines(m.reply, m.at, false, m.channel);
+  pet?.onEvent({ type: 'reply-end', id: m.id, error: null });
   scrollChat();
 });
 fish.onNotice((text) => toast(text));

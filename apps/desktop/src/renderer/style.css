@@ -498,3 +498,31 @@ button.chip { background: none; margin: 0 5px 5px 0; cursor: pointer; }
 .dr-foot .primary:disabled { opacity: .5; cursor: not-allowed; }
 .dr-foot { align-items: center; }
 .dr-foot-note { order: -1; margin-right: auto; }
+
+/* ---------- 发现探索 · 内核 ---------- */
+.kernel-line { display: inline-flex; align-items: center; gap: 6px; margin: -6px 0 12px; padding: 3px 10px; border-radius: 12px; border: 1px solid var(--line); background: none; color: var(--dim); font-size: 12px; cursor: pointer; }
+.kernel-line:hover { color: var(--text); border-color: var(--line2); }
+.kdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.kdot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.kdot.busy { background: var(--cyan); animation: blink 1s infinite; }
+.kdot.bad { background: var(--pink); }
+.k-state { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.k-state b { font-size: 16px; font-weight: 500; }
+.k-btns { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.k-info { display: grid; gap: 4px; font-size: 12.5px; }
+.k-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
+.k-row span:last-child { overflow-wrap: anywhere; }
+.k-row code, .k-plugins code { font: 11.5px var(--mono); color: var(--text); }
+.k-plugins { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12.5px; }
+.k-plugins li span { margin-left: 8px; }
+.k-note { margin: 12px 0 0; font-size: 12px; color: var(--dim); line-height: 1.7; }
+.k-grid { margin-bottom: 12px; }
+.k-form { display: flex; gap: 8px; margin-bottom: 10px; }
+.k-form input { flex: 1; min-width: 0; background: rgba(4, 10, 22, 0.8); border: 1px solid var(--line2); border-radius: 4px; color: var(--text); padding: 7px 9px; font: 13px var(--sans); outline: none; }
+.k-form input:focus { border-color: var(--cyan); }
+.k-say { padding: 8px 0; border-top: 1px dashed var(--line); font-size: 13px; display: grid; gap: 4px; }
+.k-q::before { content: '你 → 内核：'; color: var(--dim); font-size: 12px; }
+.k-a::before { content: '她：'; color: var(--dim); font-size: 12px; }
+.k-err { color: var(--pink); }
+.channel-tag { align-self: flex-start; font-size: 10px; color: var(--cyan); margin-top: 4px; }
+.channel-tag.me { align-self: flex-end; }

@@ -77,7 +77,7 @@ async function sweep(label) {
     if (!info.len || info.bad || info.over || info.bar > 46) bad.push(`${r}:${JSON.stringify(info)}`);
     await sleep(40);
   }
-  check(`${label}：${routes.length} 个页面都正常`, routes.length === 24 && !bad.length, bad.slice(0, 3).join(' | '));
+  check(`${label}：${routes.length} 个页面都正常`, routes.length === 25 && !bad.length, bad.slice(0, 3).join(' | '));
   times.sort((a, b) => a - b);
   const p95 = times[Math.floor(times.length * 0.95)];
   check(`${label}：切换页面足够快（p95 < 120ms）`, p95 < 120, `${p95.toFixed(1)}ms`);
@@ -227,7 +227,7 @@ async function mainScenario() {
   await js("window.__go('settings/general')");
   check('设置页有 API Key 输入框', await js("!!document.querySelector('#lk-key')"));
   const about = await js("document.querySelector('#about')?.innerText || ''");
-  check('设置页署名了鲸鱼娘和皮层数据', about.includes('PC2005-cloud') && about.includes('禁止商用') && about.includes('Anderson Winkler'), about.replace(/\s+/g, ' ').slice(80, 200));
+  check('设置页署名了鲸鱼娘、皮层数据和 DSH', about.includes('PC2005-cloud') && about.includes('禁止商用') && about.includes('Anderson Winkler') && about.includes('DeepSeek Harness 0.0.1-rc.5'), about.replace(/\s+/g, ' ').slice(80, 200));
   check('设置页显示组件版本', about.includes(`大肥鱼 ${require('../package.json').version}`) && about.includes(`Electron ${process.versions.electron}`) && about.includes(`Node ${process.versions.node}`), about.replace(/\s+/g, ' ').slice(0, 80));
 }
 
@@ -329,6 +329,48 @@ async function upgradeScenario() {
   check('升级：旧的 Key 字段迁移到新的加密存储', !raw.apiKeyEnc && !raw.apiKeyPlain && (enc ? !settingsFile().includes('sk-upgrade-test') : !!raw.secrets?.deepseek?.plain), Object.keys(raw).join(','));
 }
 
+/** 内核：DSH 真的跑起来，通过它说的话走完 DSH → 生命网关 → 她的大脑 → 假 DeepSeek */
+async function kernelScenario() {
+  const fs = require('fs');
+  const path = require('path');
+  const pidFile = path.join(app.getPath('userData'), 'dsh-pids.txt');
+  const notePid = (pid) => pid && fs.appendFileSync(pidFile, `${pid}
+`);
+  await js("window.__go('explore/kernel')");
+  check('内核：默认不随程序启动', (await js('window.fish.dshStatus()')).state === 'stopped');
+  await waitFor("!!document.querySelector('[data-k-act=start]')", 5000);
+  await js("document.querySelector('[data-k-act=start]').click()");
+  check('内核：启动成功', await waitFor("window.fish.dshStatus().then(s=>s.state==='running')", 20000));
+  const st = await js('window.fish.dshStatus()');
+  notePid(st.pid);
+  check('内核：页面显示运行中和 3 个插件', await waitFor("document.querySelector('#kStatus').innerText.includes('运行中') && document.querySelectorAll('.k-plugins li').length===3", 5000));
+  check('内核：没有加载能动电脑的插件', !st.plugins.some((p) => /bash|pwsh|terminal|fs-local|web|subagent|mcp|tool-skill|tool-jobs|editor/.test(p.name)), st.plugins.map((p) => p.name).join(','));
+
+  const before = requests.length;
+  await js(`(()=>{const i=document.querySelector('#kInput');i.value='通过内核问一句：你记得大橘吗';document.querySelector('#kForm').requestSubmit()})()`);
+  check('内核：通过内核说一句话，收到她的回复', await waitFor("(window.__kernelSaid().at(-1)||{}).reply==='我记得呀，大橘嘛'", 20000), JSON.stringify(await js('window.__kernelSaid().at(-1)')));
+  check('内核：这句话出现在聊天栏，带“经内核”标记', await waitFor("document.querySelector('#msgs').innerText.includes('通过内核问一句') && [...document.querySelectorAll('#msgs .channel-tag')].some(t=>t.textContent==='经内核')", 5000));
+  const chat = requests.slice(before).filter((b) => b.stream);
+  const sys = chat.at(-1)?.messages?.[0]?.content || '';
+  check('内核：假 DeepSeek 收到的提示词里有她的人设和身体状态', sys.includes('【你的身体】') && sys.includes('【你现在说话的样子】') && !sys.includes('dafeiyu-gateway'), sys.slice(0, 60));
+  check('内核：假 DeepSeek 只收到一次聊天请求（DSH 的请求到网关为止）', chat.length === 1, String(chat.length));
+  await js("window.__go('mind/memory')");
+  check('内核：这句话进了记忆页', await waitFor("document.querySelector('#page').innerText.includes('通过内核问一句')", 5000));
+
+  // 杀掉内核进程：10 秒内自动恢复，再说一句仍有回复
+  process.kill(st.pid);
+  const t0 = Date.now();
+  const back = await waitFor(`window.fish.dshStatus().then(s=>s.state==='running' && s.pid!==${st.pid})`, 10000);
+  check('内核：杀掉内核进程后自动恢复', back, `${((Date.now() - t0) / 1000).toFixed(1)} 秒`);
+  const st2 = await js('window.fish.dshStatus()');
+  notePid(st2.pid);
+  const r2 = await js("window.fish.dshSay('恢复以后还在吗')");
+  check('内核：恢复后再说一句仍有回复', r2.ok && r2.reply === '我记得呀，大橘嘛', JSON.stringify(r2).slice(0, 120));
+  check('内核：重启次数和最近一次错误记下来了', st2.restarts >= 1 && /意外退出/.test(st2.lastError || ''), JSON.stringify({ restarts: st2.restarts, lastError: st2.lastError }));
+  await js("window.__go('explore/platforms')");
+  check('内核：插件页顶部显示内核运行中', await waitFor("(document.querySelector('.kernel-line')||{}).textContent?.includes('运行中')", 5000));
+}
+
 /** 存档里一条记忆都没有：意识海只显示提示，不能有一团白光 */
 async function emptyScenario() {
   await js("window.__go('mind/ocean')");
@@ -340,7 +382,7 @@ async function emptyScenario() {
   check('聊天栏的提示指向设置页', await js("document.querySelector('#goLinks').textContent.includes('设置')"));
 }
 
-const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario, upgrade: upgradeScenario, empty: emptyScenario, noskin: noskinScenario };
+const RUN = { kernel: kernelScenario, main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario, upgrade: upgradeScenario, empty: emptyScenario, noskin: noskinScenario };
 
 server.listen(0, '127.0.0.1', () => {
   if (scenario !== 'upgrade') process.env.DEEPSEEK_API_KEY = 'sk-e2e-mock-key-000000';
@@ -367,6 +409,12 @@ server.listen(0, '127.0.0.1', () => {
     }
     console.log(`E2E ${scenario}：通过 ${passed}，失败 ${failed}`);
     server.close();
-    app.exit(code);
+    // 走正常的退出流程（before-quit 里会先关内核），这样“退出后没有残留进程”测的是真实路径
+    app.on('will-quit', (e) => {
+      e.preventDefault();
+      app.exit(code);
+    });
+    setTimeout(() => app.exit(code), 8000).unref();
+    app.quit();
   });
 });
