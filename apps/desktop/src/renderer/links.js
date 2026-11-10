@@ -19,6 +19,7 @@ function aboutCard(v, petSkin) {
       <p class="mono">Electron ${esc(v.electron)} · Node ${esc(v.node)} · Chromium ${esc(v.chrome)}</p>
       ${pet}
       <p>大脑皮层网格：Anderson Winkler，Brain for Blender，CC BY-SA 3.0。</p>
+      ${v.dsh ? `<p>内核：DeepSeek Harness ${esc(v.dsh)}，BSD-3-Clause，Copyright (c) 2026 DeepSeek。完整的第三方许可见 docs/第三方许可.md。</p>` : ''}
     </div>`;
 }
 

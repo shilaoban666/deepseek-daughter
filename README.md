@@ -89,7 +89,7 @@ node scripts/seed.js     # 往截图用的临时存档里塞一份演示数据
 ```bash
 cd apps/desktop
 npm test            # 单元测试，不需要网络
-npm run e2e         # 启动真实应用，走完 24 个页面、聊天、身心闭环和性能检查
+npm run e2e         # 启动真实应用，走完 25 个页面、聊天、身心闭环、内嵌内核和性能检查
 npm run eval        # 记忆召回评估集：recall@5、MRR、检索延迟
 npm run simulate    # 模拟时钟快进 7 天，检查吃饭、睡觉、想法分布、主动找人的克制
 ```
@@ -104,18 +104,21 @@ npm run simulate    # 模拟时钟快进 7 天，检查吃饭、睡觉、想法�
 
 ## 架构
 
-大肥鱼是一个桌面程序。DSH（DeepSeek Harness）作为内核打包在里面，用户不用另装。我们的生命核心（身体、大脑、记忆、驱力）和精选的 QQ、微信通道插件都以 DSH 插件的形式装在内核里，所以不管从哪里找她，她都是同一个人、同一份记忆。DSH 默认带的执行命令、读写文件等编程工具全部关闭。
+大肥鱼是一个桌面程序。她的生命核心（身体、大脑、记忆、驱力、免疫）在 Electron 主进程里。DSH（DeepSeek Harness）作为内核打包在里面，用户不用另装；它以子进程运行，DeepSeek 适配器的地址指向主进程里的“生命网关”——一个只监听本机、接口和 DeepSeek 一样的服务。DSH 以为自己在调用 DeepSeek，其实每句话都交给了她，所以以后不管从 QQ、微信还是桌面找她，她都是同一个人、同一份记忆。
+
+DSH 只装三个插件（JSON-RPC 服务、DeepSeek 适配器、智能体主干），执行命令、读写文件等能动电脑的插件一个都不装；网关的回复里也永远没有工具调用。DSH 拿不到你的 DeepSeek Key，它的数据目录在大肥鱼自己的目录里，不碰你的 `~/.dsh`。
 
 ![内核组成](docs/images/kernel.png)
 
-> 现状：桌面程序目前直接调用 DeepSeek API，下一步把 DSH 内核嵌进去。
+> 现状：内核已经接通，「发现探索 › 内核」可以通过内核跟她说话。QQ、微信通道下一期接入。
 
 ## 技术栈与目录
 
 | 部分 | 选型 |
 |---|---|
-| 大模型 | DeepSeek API（直接调用，用户填自己的 Key） |
+| 大模型 | DeepSeek API（只有生命核心调用，用户填自己的 Key） |
 | 桌面外壳 | Electron 45（自带 Node 24），打包成单个便携版 exe |
+| 内核 | DSH 0.0.1-rc.5 最小配置，子进程运行，经生命网关接她的大脑 |
 | 生命核心 | 原生 JavaScript + Node 内置测试框架，不依赖框架 |
 | 记忆 | 本地 JSON（接口已经按 SQLite + 向量检索设计，换后端只改 `memory.js`） |
 | 界面 | 原生 DOM + three.js 全息大脑（真实 MRI 皮层网格） |
@@ -135,6 +138,8 @@ apps/desktop/
 │   ├── intent.js            从一句话里读意图
 │   ├── backup.js            每日备份
 │   ├── daughter.js          把上面这些串起来
+│   ├── gateway.js           生命网关：DSH 通过它和她说话
+│   ├── dsh/                 内嵌 DSH：生成配置、启动和守护子进程
 │   └── main.js / preload.js Electron 主进程与 IPC
 ├── src/main/physiology/     内环境、激素、自主神经、反射、免疫、身心闭环
 ├── src/renderer/views/      八个板块的页面

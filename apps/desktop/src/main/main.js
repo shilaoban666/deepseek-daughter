@@ -12,6 +12,8 @@ const { APP_NAME, nameOf } = require('./persona');
 const { DEFAULT_BASE } = require('./deepseek');
 const { createSecrets, electronCipher } = require('./secrets');
 const channels = require('./channels/registry');
+const { createGateway } = require('./gateway');
+const { createDshRuntime } = require('./dsh/runtime');
 
 const DEFAULT_MODEL = 'deepseek-chat';
 
@@ -57,6 +59,8 @@ if (!app.requestSingleInstanceLock()) {
   let daughter = null;
   let store = null;
   let settings = null;
+  let gateway = null; // 生命网关：DSH 通过它和她说话
+  let dsh = null; // 内嵌的 DSH 子进程（按需启动）
 
   let secrets = null;
   let channelSettings = {};
@@ -216,6 +220,8 @@ if (!app.requestSingleInstanceLock()) {
     daughter.on('diary', (diary) => send('diary', diary.slice(-30)));
     daughter.on('notice', (text) => send('notice', text));
     daughter.on('us', (payload) => send('us', payload));
+    // 从内核（以后是 QQ、微信）来的对话：桌面聊天栏同步显示，带“经内核”小标
+    daughter.on('channel-message', (m) => send('channel-message', m));
     daughter.on('error', (err) => {
       console.error('[daughter]', err);
       send('notice', err.message);
@@ -224,7 +230,7 @@ if (!app.requestSingleInstanceLock()) {
     const heartbeatMs = (config.get().heartbeatMinutes || 1) * 60 * 1000;
 
     // app.getVersion() 在用别的入口启动时（比如端到端测试）会退回 Electron 自己的版本号，直接读 package.json
-    const versions = { app: require('../../package.json').version, electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome };
+    const versions = { app: require('../../package.json').version, electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome, dsh: require('../../package.json').dependencies['@deepseek-ai/dsh-sdk-jsonrpc-demo'] };
     ipcMain.handle('init', () => ({ name: nameOf(settings), appName: APP_NAME, settings: publicSettings(), versions, petConfig: config.get().pet || {}, ...daughter.snapshot() }));
     ipcMain.handle('refresh-balance', () => daughter.refreshBalance());
     ipcMain.handle('send', async (_e, text) => {
@@ -299,6 +305,35 @@ if (!app.requestSingleInstanceLock()) {
       return { ok: true, list: channelList() };
     });
 
+    // ---------- 生命网关 + 内嵌 DSH ----------
+    const dshLog = (level, msg) => (level === 'error' || level === 'warn' ? console.warn : console.log)(`[dsh] ${msg}`);
+    gateway = createGateway({ daughter, log: dshLog });
+    await gateway.start();
+    dsh = createDshRuntime({ userData: app.getPath('userData'), gateway, log: dshLog });
+    dsh.on('status', (st) => send('dsh', st));
+    const result = async (fn) => {
+      try {
+        return { ok: true, status: await fn() };
+      } catch (err) {
+        return { ok: false, error: err.message, status: dsh.status() };
+      }
+    };
+    ipcMain.handle('dsh-status', () => dsh.status());
+    ipcMain.handle('dsh-start', () => result(() => dsh.start()));
+    ipcMain.handle('dsh-stop', () => result(() => dsh.stop()));
+    ipcMain.handle('dsh-restart', () => result(() => dsh.restart()));
+    ipcMain.handle('dsh-say', async (_e, text) => {
+      const t = String(text || '').trim().slice(0, 2000);
+      if (!t) return { ok: false, error: '先写一句话' };
+      try {
+        return { ok: true, reply: await dsh.say(t), status: dsh.status() };
+      } catch (err) {
+        return { ok: false, error: err.message, status: dsh.status() };
+      }
+    });
+    // 这一期没有通道，内核默认不随程序启动（设置里 dsh.autoStart 可以打开）
+    if (store.load('settings', {}).dsh?.autoStart) dsh.start().catch(() => {});
+
     createWindow();
     if (process.env.DFY_SHOT) shoot(process.env.DFY_SHOT);
     daughter.heartbeat().catch((err) => console.error(err));
@@ -318,4 +353,14 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => app.quit());
+
+  // 退出前先关内核（最多等 5 秒），保证不留子进程
+  let quitting = false;
+  app.on('before-quit', (e) => {
+    if (quitting || (!dsh && !gateway)) return;
+    e.preventDefault();
+    quitting = true;
+    const done = (dsh ? dsh.stop() : Promise.resolve()).then(() => gateway?.stop());
+    Promise.race([done, new Promise((r) => setTimeout(r, 5000))]).finally(() => app.quit());
+  });
 }

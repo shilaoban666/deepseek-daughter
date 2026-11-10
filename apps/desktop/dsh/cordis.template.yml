@@ -1,0 +1,35 @@
+# 大肥鱼内嵌的 DSH 配置模板。由 src/main/dsh/config.js 填好以后写到 <userData>/dsh/profile/cordis.yml，不要手改生成的文件。
+#
+# 只有三个插件（E0 实验得出的最小清单，见 docs/notes/dsh-spike.md）：
+#   JSON-RPC 服务（大肥鱼通过它收发消息）、DeepSeek 适配器（指向本机的生命网关）、智能体主干（关掉它自带的一切工具）。
+# 没有任何能执行命令、读写文件、上网、开子智能体的插件。插件名必须在 config.js 的 ALLOWED_PLUGINS 里。
+
+- id: jsonrpc
+  name: '@deepseek-ai/dsh-sdk-jsonrpc-server'
+
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek'
+  config:
+    # 不是真的 DeepSeek Key：是生命网关每次启动随机生成的令牌，由大肥鱼通过环境变量传进来
+    apiKeyEnv: DFY_GATEWAY_TOKEN
+    baseURL: '{{GATEWAY_URL}}'
+    thinking: disabled
+    # 网关单次最多等 120 秒
+    streamIdleTimeoutMs: 130000
+    models:
+      - id: deepseek-chat
+
+- id: agent-spine
+  name: '@deepseek-ai/dsh-agent-spine-demo'
+  config:
+    includeHarnessIdentity: false
+    # 网关会忽略 DSH 的系统提示词，她用自己的人设
+    persona: 'dafeiyu-gateway'
+    workspaceContext: false
+    skills:
+      enabled: false
+    toolBash: false
+    toolJobs: false
+
+# 通道插件（阶段 G 的 QQ、微信）以后加在这里。这一期永远是空的。
+# {{CHANNELS}}

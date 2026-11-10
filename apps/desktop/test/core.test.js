@@ -389,3 +389,93 @@ test('DeepSeek：错误码给出能看懂的提示', async () => {
     server.close();
   }
 });
+
+// ---------- 阶段 E：从桌面聊天栏以外的地方来的消息 ----------
+
+test('通道：经内核说的话，桌面聊天栏里也有，记忆里也有', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-ch-'));
+  const stub = stubChat('我在呀');
+  try {
+    const d = new Daughter({ store: new JsonStore(dir), getSettings: () => ({ apiKey: 'sk-test', model: 'deepseek-chat', userName: '小明' }) });
+    const seen = [];
+    const desktopEvents = [];
+    d.on('channel-message', (m) => seen.push(m));
+    d.on('reply-start', () => desktopEvents.push('reply-start'));
+    const deltas = [];
+    const r = await d.replyFrom({ text: '你今天吃了什么', channel: 'kernel', onDelta: (x) => deltas.push(x) });
+    assert.deepEqual(r, { text: '我在呀' });
+    assert.deepEqual(deltas, ['我在呀'], '流式片段交给调用方');
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].channel, 'kernel');
+    assert.equal(seen[0].text, '你今天吃了什么');
+    assert.equal(seen[0].reply, '我在呀');
+    assert.deepEqual(desktopEvents, [], '不发桌面聊天栏的 reply-* 事件，界面靠 channel-message 显示');
+    const last2 = d.history.slice(-2);
+    assert.deepEqual(last2.map((m) => [m.role, m.content, m.channel]), [['user', '你今天吃了什么', 'kernel'], ['assistant', '我在呀', 'kernel']]);
+    const ep = d.memory.records.find((m) => m.text.includes('你今天吃了什么'));
+    assert.ok(ep, '进了情景记忆');
+    assert.ok(ep.tags.includes('channel:kernel'), ep.tags.join(','));
+    assert.equal(ep.source.kind, 'owner');
+    const sys = stub.calls[0].messages[0].content;
+    assert.ok(sys.includes('【你的身体】'), '和桌面聊天一样带着她的身体状态');
+    // 重启后聊天记录里的通道标签还在
+    const d2 = new Daughter({ store: new JsonStore(dir), getSettings: () => ({}) });
+    assert.equal(d2.history.at(-1).channel, 'kernel');
+  } finally {
+    stub.restore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('通道：桌面聊天和内核消息排队处理，不会交错', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-ch2-'));
+  const ds = require('../src/main/deepseek');
+  const orig = ds.chat;
+  const trace = [];
+  ds.chat = async (opts) => {
+    const last = opts.messages.at(-1).content;
+    trace.push(`开始:${last}`);
+    await new Promise((r) => setTimeout(r, last === '第一句' ? 60 : 5));
+    trace.push(`结束:${last}`);
+    return { text: `回${last}`, usage: { prompt_tokens: 1, completion_tokens: 1 } };
+  };
+  try {
+    // 不给 apiKey：假模型不需要，也就不会在第三句后触发后台记忆提炼（它会在测试结束后才写盘）
+    const d = new Daughter({ store: new JsonStore(dir), getSettings: () => ({ model: 'deepseek-chat' }) });
+    await Promise.all([d.reply('第一句'), d.replyFrom({ text: '第二句', channel: 'kernel' }), d.reply('第三句')]);
+    assert.deepEqual(trace, ['开始:第一句', '结束:第一句', '开始:第二句', '结束:第二句', '开始:第三句', '结束:第三句']);
+    assert.deepEqual(d.history.slice(-6).map((m) => m.content), ['第一句', '回第一句', '第二句', '回第二句', '第三句', '回第三句']);
+  } finally {
+    ds.chat = orig;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('通道：预算用完时经内核也只回“累了”', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-ch3-'));
+  const stub = stubChat('不该被调用');
+  config.patch({ budget: { dailyTokens: 1000 } });
+  try {
+    const d = new Daughter({ store: new JsonStore(dir), getSettings: () => ({ apiKey: 'sk-test', model: 'deepseek-chat' }) });
+    d.usage[life.dateKey(Date.now())] = { prompt: 1500, completion: 0, calls: 9 };
+    const seen = [];
+    d.on('channel-message', (m) => seen.push(m));
+    const r = await d.replyFrom({ text: '在吗', channel: 'kernel' });
+    assert.equal(r.tired, true);
+    assert.ok(r.text.length > 0);
+    assert.equal(stub.calls.length, 0);
+    assert.equal(seen[0].tired, true);
+    assert.equal(d.history.at(-1).channel, 'kernel');
+  } finally {
+    stub.restore();
+    config.reset();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('通道：replyFrom 不接受空消息和没有通道名的调用', async () => {
+  const d = new Daughter({ store: { load: (_n, f) => f, save() {} }, getSettings: () => ({}) });
+  await assert.rejects(d.replyFrom({ text: '  ', channel: 'kernel' }), /空消息/);
+  await assert.rejects(d.replyFrom({ text: '你好' }), /通道/);
+  await assert.rejects(d.replyFrom({ text: '你好', channel: 'desktop' }), /通道/);
+});
