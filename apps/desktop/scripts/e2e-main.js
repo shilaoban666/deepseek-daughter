@@ -105,6 +105,18 @@ async function pixelSpread(selector) {
   return max - min;
 }
 
+/** 一块区域里接近白色的像素占多少（空的意识海不该有大光团） */
+async function brightRatio(selector) {
+  const r = await js(`(()=>{const b=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:Math.round(b.x),y:Math.round(b.y),width:Math.round(b.width),height:Math.round(b.height)}})()`);
+  const data = (await win.webContents.capturePage(r)).toBitmap();
+  let bright = 0, total = 0;
+  for (let i = 0; i < data.length; i += 4 * 7) {
+    total += 1;
+    if (data[i] > 220 && data[i + 1] > 220 && data[i + 2] > 220) bright += 1;
+  }
+  return bright / total;
+}
+
 async function mainScenario() {
   await sweep('没有数据时');
   const text = (await pageText());
@@ -223,7 +235,18 @@ async function upgradeScenario() {
   check('升级：请求带的是旧存档里的那把 Key', lastAuth === 'Bearer sk-upgrade-test-000000', lastAuth.slice(0, 16));
 }
 
-const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario, upgrade: upgradeScenario };
+/** 存档里一条记忆都没有：意识海只显示提示，不能有一团白光 */
+async function emptyScenario() {
+  await js("window.__go('mind/ocean')");
+  await sleep(1500);
+  const hint = await js("(async()=>{const e=document.querySelector('.ocean-empty');const d=await window.fish.init();return {has:!!e,hidden:e?e.hidden:null,shown:!!e&&!e.hidden&&e.offsetParent!==null,records:(d.memory.records||[]).filter(r=>!r.archived).map(r=>r.layer+':'+r.text.slice(0,12))}})()");
+  check('空的意识海显示提示文字', hint.shown, hint.shown ? '' : JSON.stringify(hint));
+  const glow = await brightRatio('#stage3d');
+  check('空的意识海没有大块亮光', glow < 0.01, `${(glow * 100).toFixed(2)}%`);
+  check('聊天栏的提示指向设置页', await js("document.querySelector('#goLinks').textContent.includes('设置')"));
+}
+
+const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario, upgrade: upgradeScenario, empty: emptyScenario };
 
 server.listen(0, '127.0.0.1', () => {
   if (scenario !== 'upgrade') process.env.DEEPSEEK_API_KEY = 'sk-e2e-mock-key-000000';

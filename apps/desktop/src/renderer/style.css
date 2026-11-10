@@ -420,3 +420,5 @@ button.chip { background: none; margin: 0 5px 5px 0; cursor: pointer; }
 .immersive .brain-layout { grid-template-columns: minmax(0, 1fr); }
 .immersive .stage-host { height: 100vh; border: 0; border-radius: 0; }
 @media (max-width: 1180px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .brain-layout { grid-template-columns: minmax(0, 1fr) 230px; } }
+
+.ocean-empty { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); color: var(--dim); font-size: 13px; letter-spacing: 1px; pointer-events: none; }

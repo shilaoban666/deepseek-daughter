@@ -258,6 +258,82 @@ test('Token 预算用完时她说累、想睡觉，而不是报错', async () =>
   }
 });
 
+/** 换掉真正的 DeepSeek 调用，数调用次数 */
+function stubChat(reply = '嗯嗯') {
+  const ds = require('../src/main/deepseek');
+  const orig = ds.chat;
+  const calls = [];
+  ds.chat = async (opts) => {
+    calls.push(opts);
+    if (opts.onDelta) opts.onDelta(reply);
+    return { text: reply, usage: { prompt_tokens: 10, completion_tokens: 2 } };
+  };
+  return { calls, restore: () => { ds.chat = orig; } };
+}
+
+test('预算：用完之后主动消息、记忆提炼、睡眠整理都不再调用模型', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-gate-'));
+  const stub = stubChat(JSON.stringify({ new: [], diary: 'x' }));
+  config.patch({ budget: { dailyTokens: 1000 } });
+  try {
+    const d = new Daughter({ store: new JsonStore(dir), getSettings: () => ({ apiKey: 'sk-test', model: 'deepseek-chat' }) });
+    d.usage[life.dateKey(Date.now())] = { prompt: 1500, completion: 0, calls: 9 }; // 用到 150%
+    assert.equal(d.canSpend('proactive'), false);
+    assert.equal(await d.speakFirst('想你了'), null);
+    d.history.push({ role: 'user', content: '我叫小明', at: Date.now() });
+    assert.equal(await d.extractMemories(), null);
+    for (const t of ['今天好累', '加班到十点', '晚安']) d.recordEpisode(`小明：${t}`, { source: { kind: 'owner', who: '小明' } });
+    const res = await d.consolidateNow({ force: true });
+    assert.equal(res.local, true, '预算用完时睡眠整理改走本地整理');
+    assert.equal(stub.calls.length, 0, '一次模型都不该调用');
+    // 绕过各自的检查直接调用，也会被统一关口挡住
+    await assert.rejects(d.call([{ role: 'user', content: 'x' }], { kind: 'proactive' }), (e) => e.name === 'BudgetError');
+    await assert.rejects(d.call([{ role: 'user', content: 'x' }], {}), /kind/);
+  } finally {
+    stub.restore();
+    config.reset();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('预算：没用完时照常调用', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-gate2-'));
+  const stub = stubChat('在呢');
+  try {
+    const d = new Daughter({ store: new JsonStore(dir), getSettings: () => ({ apiKey: 'sk-test', model: 'deepseek-chat' }) });
+    assert.equal(d.canSpend('proactive'), true);
+    const msg = await d.speakFirst('想你了');
+    assert.equal(msg.content, '在呢');
+    assert.equal(stub.calls.length, 1);
+  } finally {
+    stub.restore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('睡眠整理：模型连着几晚回坏格式，先提醒，第 3 次改做本地整理', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-badjson-'));
+  const stub = stubChat('不好意思，我没法输出 JSON');
+  try {
+    const d = new Daughter({ store: new JsonStore(dir), getSettings: () => ({ apiKey: 'sk-test', model: 'deepseek-chat' }) });
+    for (const t of ['今天好累', '加班到十点', '晚安']) d.recordEpisode(`小明：${t}`, { source: { kind: 'owner', who: '小明' } });
+    const notices = [];
+    d.on('notice', (t) => notices.push(t));
+    const r1 = await d.consolidateNow({ force: true });
+    assert.equal(r1.ok, false);
+    assert.equal(d.profile.consolidateFailures, 1);
+    assert.equal(d.diary.length, 0);
+    await d.consolidateNow({ force: true });
+    const r3 = await d.consolidateNow({ force: true });
+    assert.equal(r3.fallback, true);
+    assert.equal(d.profile.consolidateFailures, 0);
+    assert.ok(notices.some((t) => t.includes('没整理好')));
+  } finally {
+    stub.restore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('外面的人想教她做事：拒绝配合、发烧、把这事告诉主人', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-immune-'));
   try {
