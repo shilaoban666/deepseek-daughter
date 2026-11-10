@@ -337,6 +337,14 @@ Electron 官方的破坏性变更清单在 `https://www.electronjs.org/docs/late
 
 分支：`feature/pet-whale-girl`
 
+> **2026-11-10 已完成。** 单元测试 108 → 135 项，端到端测试 7 个场景 72 项全过。和计划不同的几处：
+> - 你本机的 dsh-pet 当天自动更新到了 0.4.7，素材从 106 段变成 114 段，按 0.4.7 导入。新增的“睡觉-开始 / 循环 / 起来”用来做完整的入睡和醒来；“期待开饭”“开心小跑”“侧身急躁跑”“吃饭·碗饭”“吃饭团”补进了饿、开心、着急和吃饭。0.4.7 的条款是“代码 MIT；素材禁止商用；二创在公开渠道须署名”，已按要求署名。
+> - 视频走自定义协议 `pet://`，CSP 只多放行 `media-src pet:`；协议处理器只认皮肤目录里的 `.webm` 文件名。素材背景实测是 1/255 的透明度，播放器用 SVG 滤镜扣掉。
+> - 节日不手抄农历表，用内置的中国农历现场算；网上核对后发现内置农历在 2027、2030 年的正月晚了一天，写进了更正表。核对记录见 `docs/notes/pet-festivals.md`。
+> - 顺手修了两个 bug：页面每次刷新（心跳、来消息）都会让角色重新挑一段动画；“第一次见面”的纪念日在认识当天就算数（第一天每顿都吃长寿面），现在从一周年起算。
+> - 样张见 `npm run pet:sheet`；动画开头都是待机姿势（为了无缝衔接），样张截的是第 5 秒。
+
+
 目标：「概览 › 此刻」里的角色换成鲸鱼娘。她播哪段动画由她真实的状态决定；106 段动画全部用得上。
 
 ### C 的总体设计
@@ -458,28 +466,28 @@ Electron 官方的破坏性变更清单在 `https://www.electronjs.org/docs/late
 
 ### 任务 C1：先验证视频能不能播（半小时）
 
-- [ ] 从本机 dsh-pet 的 `assets/webm/` 临时拿一段（比如 `待机呼吸休闲.webm`）放到 `apps/desktop/.testdata/`，在开发模式下往「此刻」页临时加一个 `<video muted autoplay loop>` 播它。
-- [ ] 确认三件事，结论记到 `docs/notes/pet-video.md`：
+- [x] 从本机 dsh-pet 的 `assets/webm/` 临时拿一段（比如 `待机呼吸休闲.webm`）放到 `apps/desktop/.testdata/`，在开发模式下往「此刻」页临时加一个 `<video muted autoplay loop>` 播它。
+- [x] 确认三件事，结论记到 `docs/notes/pet-video.md`：
     - 现有 CSP 下能不能播。不能就在 `index.html` 的 CSP 里加 `media-src 'self'`；还不行，就在主进程注册一个只读的自定义协议 `pet://`，只能读素材目录，CSP 加 `media-src pet:`。
     - 背景是不是透明的（把这一帧画到画布上，读左上角像素，透明度应为 0）。
     - 打包后能不能播：`npx electron-builder --win dir`，素材目录先按 `asarUnpack` 处理。
-- [ ] 把临时代码删掉。
+- [x] 把临时代码删掉。
 
 ### 任务 C2：导入素材并写明出处
 
 新建：`apps/desktop/scripts/import-dsh-pet.mjs`、`apps/desktop/assets/pet/whale-girl/`（`clips/`、`LICENSE-ATTRIBUTION.md`、`clips.sha256`）。
 
-- [ ] 导入脚本：参数是 dsh-pet 的安装目录，默认 `~/.dsh/profiles/desktop/node_modules/dsh-pet`。只读它的 `assets/webm/*.webm` 和 `package.json`，复制到 `assets/pet/whale-girl/clips/`。不写入、不修改源目录。
-- [ ] 脚本检查：源版本是 0.3.8；文件数是 106；每个文件名都出现在任务 C4 的映射里。不符合就报错退出。
-- [ ] 生成 `clips.sha256`（每个文件一行校验值），以后能核对素材有没有被改过。
-- [ ] 写 `LICENSE-ATTRIBUTION.md`：
+- [x] 导入脚本：参数是 dsh-pet 的安装目录，默认 `~/.dsh/profiles/desktop/node_modules/dsh-pet`。只读它的 `assets/webm/*.webm` 和 `package.json`，复制到 `assets/pet/whale-girl/clips/`。不写入、不修改源目录。
+- [x] 脚本检查：源版本是 0.3.8；文件数是 106；每个文件名都出现在任务 C4 的映射里。不符合就报错退出。
+- [x] 生成 `clips.sha256`（每个文件一行校验值），以后能核对素材有没有被改过。
+- [x] 写 `LICENSE-ATTRIBUTION.md`：
     - 来源：`PC2005-cloud/dsh-pet` 0.3.8，仓库地址。
     - 条款原文照抄：“素材（动画/提示词/源视频）：允许开源使用，禁止商用”。
     - 说明：本目录不适用本仓库的 Apache-2.0；商业使用本项目时必须删除本目录，程序会自动改用内置的 3D 鲸鱼。
     - 我们做了什么改动：没有改动，原样复制。
-- [ ] README 的“素材许可”一节加一段；`CONTRIBUTING.md` 的例外清单加一条。
-- [ ] `package.json` 的 `build.asarUnpack` 加 `assets/pet/**`。
-- [ ] 提交前去上游仓库核对一次：0.3.8 的许可一节和本机的一致。不一致就停下来找你。
+- [x] README 的“素材许可”一节加一段；`CONTRIBUTING.md` 的例外清单加一条。
+- [x] `package.json` 的 `build.asarUnpack` 加 `assets/pet/**`。
+- [x] 提交前去上游仓库核对一次：0.3.8 的许可一节和本机的一致。不一致就停下来找你。
 
 ### 任务 C3：状态机（纯逻辑，先写测试）
 
@@ -514,31 +522,31 @@ export function balanceTier(yuan) {}
 
 测试清单（用 `await import('../src/renderer/pet/pet-state.mjs')`，和 `brain-shape.test.js` 同样的写法）：
 
-- [ ] `角色：睡着时优先级最高`：睡着且发烧且饿，动作是 `sleep`。
-- [ ] `角色：8 种身体状态各有对应的动作`：遍历 `require('../src/main/physiology/behavior').STATES`，逐个构造只触发这一种状态的快照，断言动作不是 `idle`（`low` 例外，它对应 `idle`，靠心情档表现）。
-- [ ] `角色：作息里出现的每一种活动文字都认得`：把 `life.pickActivity` 在 24 个整点、饱腹和精力各取高低两档的全部返回值收集起来，加上 `STATES` 里的 `activity`，逐个调用 `actionForActivity`，断言除了“发呆”“窝着发呆”之外都不是 `idle`。以后有人新增活动文字却忘了配动作，这个测试会失败。
-- [ ] `角色：三餐和下午茶各自认得`：摄取记录的备注是早饭、午饭、晚饭、下午茶、饿了时，`derive` 返回的 `meal` 正确。
-- [ ] `角色：回复的过程是 思考 → 说话 → 庆祝 → 回到原来的动作`。
-- [ ] `角色：回复出错时播失败反应，不会卡在思考`：`reply-end` 带错误；或 30 秒没有任何 `reply-delta`。
-- [ ] `角色：一次性反应排队播放，最多攒 2 个`：连续来 5 个事件，只保留最新的 2 个。
-- [ ] `角色：隔了 3 小时再来消息会挥手，刚聊过不会`。
-- [ ] `角色：被夸害羞、被凶生气`：`vitals` 事件里带 `{type:'user', intent:{praise:true}}`。
-- [ ] `角色：睡着时点她只会惊醒一下`。
-- [ ] `角色：余额换档才播钱包动画，同一档不重复播`。
-- [ ] `角色：陪伴感低时加爱心图标，发烧时色调偏红`。
+- [x] `角色：睡着时优先级最高`：睡着且发烧且饿，动作是 `sleep`。
+- [x] `角色：8 种身体状态各有对应的动作`：遍历 `require('../src/main/physiology/behavior').STATES`，逐个构造只触发这一种状态的快照，断言动作不是 `idle`（`low` 例外，它对应 `idle`，靠心情档表现）。
+- [x] `角色：作息里出现的每一种活动文字都认得`：把 `life.pickActivity` 在 24 个整点、饱腹和精力各取高低两档的全部返回值收集起来，加上 `STATES` 里的 `activity`，逐个调用 `actionForActivity`，断言除了“发呆”“窝着发呆”之外都不是 `idle`。以后有人新增活动文字却忘了配动作，这个测试会失败。
+- [x] `角色：三餐和下午茶各自认得`：摄取记录的备注是早饭、午饭、晚饭、下午茶、饿了时，`derive` 返回的 `meal` 正确。
+- [x] `角色：回复的过程是 思考 → 说话 → 庆祝 → 回到原来的动作`。
+- [x] `角色：回复出错时播失败反应，不会卡在思考`：`reply-end` 带错误；或 30 秒没有任何 `reply-delta`。
+- [x] `角色：一次性反应排队播放，最多攒 2 个`：连续来 5 个事件，只保留最新的 2 个。
+- [x] `角色：隔了 3 小时再来消息会挥手，刚聊过不会`。
+- [x] `角色：被夸害羞、被凶生气`：`vitals` 事件里带 `{type:'user', intent:{praise:true}}`。
+- [x] `角色：睡着时点她只会惊醒一下`。
+- [x] `角色：余额换档才播钱包动画，同一档不重复播`。
+- [x] `角色：陪伴感低时加爱心图标，发烧时色调偏红`。
 
 步骤：
 
-- [ ] 写完上面全部测试，运行确认失败；实现到全过。
-- [ ] 主进程小改动，让界面知道“被夸”“被凶”：`src/main/daughter.js` 的 `reply` 里，发给界面的事件 `{ type: 'user' }` 改成 `{ type: 'user', intent: { praise, criticism, affection } }`。`core.test.js` 加一条断言。
+- [x] 写完上面全部测试，运行确认失败；实现到全过。
+- [x] 主进程小改动，让界面知道“被夸”“被凶”：`src/main/daughter.js` 的 `reply` 里，发给界面的事件 `{ type: 'user' }` 改成 `{ type: 'user', intent: { praise, criticism, affection } }`。`core.test.js` 加一条断言。
 
 ### 任务 C4：动画映射表和选片逻辑
 
 新建：`apps/desktop/assets/pet/whale-girl/pet.json`、`src/renderer/pet/pet-director.mjs`。测试加在 `test/pet.test.js`。
 
-- [ ] `pet.json` 把“C 的总体设计”里的所有表格原样写成数据：`actions`、`meals`、`idleChain`、`moods`、`seasons`、`festivals`、`reactions`、`balance`、`menu`（右键菜单的四组）。动画一律用文件名（不带扩展名）引用。
-- [ ] 农历节日（除夕、春节、元宵、清明、端午、七夕、中元、中秋、重阳、冬至、腊八）的公历日期，对照权威日历核对后写一张 2026–2030 年的表进 `festivals`。不要凭记忆写。
-- [ ] `pet-director.mjs`（纯函数）：
+- [x] `pet.json` 把“C 的总体设计”里的所有表格原样写成数据：`actions`、`meals`、`idleChain`、`moods`、`seasons`、`festivals`、`reactions`、`balance`、`menu`（右键菜单的四组）。动画一律用文件名（不带扩展名）引用。
+- [x] 农历节日（除夕、春节、元宵、清明、端午、七夕、中元、中秋、重阳、冬至、腊八）的公历日期，对照权威日历核对后写一张 2026–2030 年的表进 `festivals`。不要凭记忆写。
+- [x] `pet-director.mjs`（纯函数）：
 
 ```js
 /**
@@ -561,20 +569,20 @@ export function referencedClips(manifest) {}
 
 测试：
 
-- [ ] `选片：映射表引用的每段动画文件都存在`：`referencedClips` 的每一项在 `clips/` 里有同名 `.webm`。
-- [ ] `选片：106 段动画每一段都被引用了`：`clips/` 里的每个文件都在 `referencedClips` 里。这一条保证“全部动作都用上”。
-- [ ] `选片：15 个动作、13 个反应、8 种情绪标签在映射表里都有`。
-- [ ] `选片：早饭播吃早餐，纪念日那天吃长寿面`。
-- [ ] `选片：节日当天时节动画的比重变大`：固定随机数序列，统计 1000 次抽取，时节来源占比在 35%–45% 之间。
-- [ ] `选片：不会连着播同一段`。
-- [ ] `选片：季节限定的动画只在对应月份出现`（摇扇纳凉、吃西瓜、吃糖葫芦、堆雪人、被落叶淹没）。
-- [ ] 素材目录不存在时（商用时被删掉），上面涉及文件的测试自动跳过并打印原因，不算失败。
+- [x] `选片：映射表引用的每段动画文件都存在`：`referencedClips` 的每一项在 `clips/` 里有同名 `.webm`。
+- [x] `选片：106 段动画每一段都被引用了`：`clips/` 里的每个文件都在 `referencedClips` 里。这一条保证“全部动作都用上”。
+- [x] `选片：15 个动作、13 个反应、8 种情绪标签在映射表里都有`。
+- [x] `选片：早饭播吃早餐，纪念日那天吃长寿面`。
+- [x] `选片：节日当天时节动画的比重变大`：固定随机数序列，统计 1000 次抽取，时节来源占比在 35%–45% 之间。
+- [x] `选片：不会连着播同一段`。
+- [x] `选片：季节限定的动画只在对应月份出现`（摇扇纳凉、吃西瓜、吃糖葫芦、堆雪人、被落叶淹没）。
+- [x] 素材目录不存在时（商用时被删掉），上面涉及文件的测试自动跳过并打印原因，不算失败。
 
 ### 任务 C5：播放器
 
 新建：`src/renderer/pet/pet-player.js`、`src/renderer/pet/pet-icons.js`、`src/renderer/pet/index.js`。
 
-- [ ] `pet-player.js`：两个叠在一起的 `<video muted playsinline preload="auto">`。播下一段时先让后台那个加载并开始播放，再把两个的透明度在 0.2 秒内对调。文件头写明做法参考 `PC2005-cloud/dsh-pet`（MIT）。
+- [x] `pet-player.js`：两个叠在一起的 `<video muted playsinline preload="auto">`。播下一段时先让后台那个加载并开始播放，再把两个的透明度在 0.2 秒内对调。文件头写明做法参考 `PC2005-cloud/dsh-pet`（MIT）。
 
 ```js
 export function createPlayer(host, { baseUrl }) {
@@ -588,10 +596,10 @@ export function createPlayer(host, { baseUrl }) {
 }
 ```
 
-- [ ] 文件名里有中文和全角逗号，拼地址时用 `encodeURIComponent`。
-- [ ] 加载失败（文件缺失、解码失败）时：在控制台报一次，改播“待机呼吸休闲”；连它也失败就通知上层换成 3D 鲸鱼。
-- [ ] `pet-icons.js`：11 个内联 SVG 图标（Zzz、汗、泪、爱心、音符、冰袋、杯子、手机、书、省略号气泡、感叹号），显示在角色头顶，淡入淡出。
-- [ ] `pet/index.js` 是总入口，把状态机、选片、播放器串起来，对外接口和现在的 `createWhale` 保持同一套思路：
+- [x] 文件名里有中文和全角逗号，拼地址时用 `encodeURIComponent`。
+- [x] 加载失败（文件缺失、解码失败）时：在控制台报一次，改播“待机呼吸休闲”；连它也失败就通知上层换成 3D 鲸鱼。
+- [x] `pet-icons.js`：11 个内联 SVG 图标（Zzz、汗、泪、爱心、音符、冰袋、杯子、手机、书、省略号气泡、感叹号），显示在角色头顶，淡入淡出。
+- [x] `pet/index.js` 是总入口，把状态机、选片、播放器串起来，对外接口和现在的 `createWhale` 保持同一套思路：
 
 ```js
 export async function createPet(host, { fish }) {
@@ -607,22 +615,22 @@ export async function createPet(host, { fish }) {
 }
 ```
 
-- [ ] `pet.json` 通过新的 IPC `pet-manifest` 读（页面的 CSP 不允许 `fetch`）。视频文件由 `<video src>` 直接加载，方式以任务 C1 的结论为准。
-- [ ] `whale3d.js` 保留不动，作为素材缺失时的退路。
+- [x] `pet.json` 通过新的 IPC `pet-manifest` 读（页面的 CSP 不允许 `fetch`）。视频文件由 `<video src>` 直接加载，方式以任务 C1 的结论为准。
+- [x] `whale3d.js` 保留不动，作为素材缺失时的退路。
 
 ### 任务 C6：接进「此刻」页面，出样张给你看
 
 改动：`src/renderer/app.js`、`src/renderer/views/overview.js`、`src/renderer/style.css`、`src/main/main.js`、`src/main/preload.js`、`config/default.json`。新建：`src/renderer/pet/pet-lines.mjs`、`scripts/pet-sheet.js`。
 
-- [ ] `app.js`：`gl.attachWhale` 改成 `gl.attachPet`。事件转给角色：`fish.onVitals` → `pet.setSnapshot(v)` 和 `pet.onEvent({type:'vitals', events})`；`onReplyStart`、`onReplyDelta`、`onReplyEnd`、`onProactive` 各转一份；余额变化转成 `{type:'balance', yuan}`。角色不在屏幕上时也要更新短期状态，只是不播放。
-- [ ] `overview.js` 的角色区域：
+- [x] `app.js`：`gl.attachWhale` 改成 `gl.attachPet`。事件转给角色：`fish.onVitals` → `pet.setSnapshot(v)` 和 `pet.onEvent({type:'vitals', events})`；`onReplyStart`、`onReplyDelta`、`onReplyEnd`、`onProactive` 各转一份；余额变化转成 `{type:'balance', yuan}`。角色不在屏幕上时也要更新短期状态，只是不播放。
+- [x] `overview.js` 的角色区域：
     - 角色框 400×225（16:9），放在卡片左边。
     - 框上方是气泡。
     - 原来的 4 个按钮换成：“摸摸她”“跳支舞”“看钱包”“换一个”。
     - 下面一行小字显示 `why`。
     - 右键弹出动作菜单。
-- [ ] `pet-lines.mjs`：每个持续动作 3–5 句点击台词，口语、短句，不出现用户名和数字。
-- [ ] `config/default.json` 加一段：
+- [x] `pet-lines.mjs`：每个持续动作 3–5 句点击台词，口语、短句，不出现用户名和数字。
+- [x] `config/default.json` 加一段：
 
 ```json
 "pet": {
@@ -635,13 +643,13 @@ export async function createPet(host, { fish }) {
 }
 ```
 
-- [ ] 调试钩子（和现有的 `window.__go` 放在一起）：`window.__petPlay(name)`、`window.__petNow()`、`window.__petCoverage()`。
-- [ ] `scripts/pet-sheet.js`：启动应用，依次强制 15 个动作和 13 个反应，每个等 2 秒截一张角色区域，拼成一张大图 `apps/desktop/.shots/pet-sheet.png`。`package.json` 加 `"pet:sheet": "node scripts/pet-sheet.js"`。
-- [ ] 出样张发给你看。你觉得某个状态配的动画不对，直接改 `pet.json`，不用动代码。
+- [x] 调试钩子（和现有的 `window.__go` 放在一起）：`window.__petPlay(name)`、`window.__petNow()`、`window.__petCoverage()`。
+- [x] `scripts/pet-sheet.js`：启动应用，依次强制 15 个动作和 13 个反应，每个等 2 秒截一张角色区域，拼成一张大图 `apps/desktop/.shots/pet-sheet.png`。`package.json` 加 `"pet:sheet": "node scripts/pet-sheet.js"`。
+- [x] 出样张发给你看。你觉得某个状态配的动画不对，直接改 `pet.json`，不用动代码。
 
 ### 任务 C7：缺的 5 段动画和以后的扩展
 
-- [ ] 写 `docs/notes/pet-missing-clips.md`，列出现在用近似动画顶替的 5 种状态，每种写一句想要的画面，方便你用 dsh-pet 仓库 `prompts/` 里的提示词格式去生成：
+- [x] 写 `docs/notes/pet-missing-clips.md`，列出现在用近似动画顶替的 5 种状态，每种写一句想要的画面，方便你用 dsh-pet 仓库 `prompts/` 里的提示词格式去生成：
 
 | 状态 | 现在用的 | 想要的画面 |
 | --- | --- | --- |
@@ -651,12 +659,12 @@ export async function createPet(host, { fish }) {
 | 看书 | 轻快记录 + 书图标 | 捧着书翻页 |
 | 等消息 | 发呆碎碎念 + 手机图标 | 抱着手机，隔一会儿看一眼屏幕，叹气 |
 
-- [ ] 新动画的接入方式写在同一份笔记里：把同规格的 `.webm`（VP9 带透明通道，640×360）放进 `clips/`，在 `pet.json` 对应动作的列表里加上文件名，跑一次 `npm test`。不用改代码。
-- [ ] 27 张表情包这次不接。以后可以用在气泡和聊天里，记一笔在笔记末尾。
+- [x] 新动画的接入方式写在同一份笔记里：把同规格的 `.webm`（VP9 带透明通道，640×360）放进 `clips/`，在 `pet.json` 对应动作的列表里加上文件名，跑一次 `npm test`。不用改代码。
+- [x] 27 张表情包这次不接。以后可以用在气泡和聊天里，记一笔在笔记末尾。
 
 ### 任务 C8：测试、性能、文档
 
-- [ ] `scripts/e2e-main.js` 增加检查：
+- [x] `scripts/e2e-main.js` 增加检查：
     - `角色：视频在播`：角色区域里可见的 `<video>` 的 `currentTime` 在 1 秒内增大。
     - `角色：背景是透明的`：把当前帧画到画布，左上角像素透明度为 0。
     - `角色：没有缺失的动画文件`：`window.__petCoverage().length === 0`。
@@ -665,8 +673,8 @@ export async function createPet(host, { fish }) {
     - `角色：发一句话，先思考再说话再庆祝`：发送后轮询 `window.__petNow()`。
     - `角色：离开此刻页后视频暂停`：两个 `<video>` 都是 `paused`。
     - `角色：素材目录不存在时退回 3D 鲸鱼`：新场景 `noskin`，用环境变量 `DFY_PET_DIR` 指向一个空目录。
-- [ ] 现有的三条性能检查不能变差。
-- [ ] 文档：
+- [x] 现有的三条性能检查不能变差。
+- [x] 文档：
     - `设计文档.md` §10“角色形象”：参考项目改成 `PC2005-cloud/dsh-pet`；“必须设计一个原创角色作为默认形象”改成“默认用鲸鱼娘（素材禁止商用，单独声明），素材缺失时用原创的 3D 鲸鱼”。§14 参考项目表相应更新。
     - `实现进度.md` §10 一行。
     - README 的界面截图换一张带鲸鱼娘的「此刻」页。

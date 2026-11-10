@@ -11,6 +11,7 @@ const on = (channel) => (fn) => {
 contextBridge.exposeInMainWorld('fish', {
   init: () => ipcRenderer.invoke('init'),
   cortex: () => ipcRenderer.invoke('cortex'),
+  petSkin: () => ipcRenderer.invoke('pet-skin'),
   send: (text) => ipcRenderer.invoke('send', text),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   // 记忆：忘掉（归档）、恢复、彻底删除、改内容、处理矛盾

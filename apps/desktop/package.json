@@ -14,7 +14,9 @@
     "simulate": "node eval/simulate.js 7 --strict",
     "shots": "node scripts/shots.js",
     "dist": "electron-builder --win portable",
-    "e2e": "node scripts/e2e.js"
+    "e2e": "node scripts/e2e.js",
+    "pet:sheet": "node scripts/pet-sheet.js",
+    "pet:import": "node scripts/import-dsh-pet.mjs"
   },
   "devDependencies": {
     "electron": "45.2.3",
@@ -49,6 +51,9 @@
     "electronLanguages": [
       "zh-CN",
       "en-US"
+    ],
+    "asarUnpack": [
+      "assets/pet/**"
     ]
   }
 }

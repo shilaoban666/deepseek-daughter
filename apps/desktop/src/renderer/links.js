@@ -19,12 +19,17 @@ const MODELS = [
 ];
 
 /** 关于：各组件版本，排查问题时看这里 */
-function aboutCard(v) {
+function aboutCard(v, petSkin) {
   if (!v) return '';
+  const pet = petSkin
+    ? `<p>角色动画：dsh-pet 的鲸鱼娘，作者 PC2005-cloud（github.com/PC2005-cloud/dsh-pet${petSkin.source?.version ? ` · ${esc(petSkin.source.version)}` : ''}）。素材禁止商用。</p>`
+    : '<p>角色：内置的原创 3D 鲸鱼。</p>';
   return `<div class="card plat" id="about">
       <div class="plat-head"><div class="plat-icon" style="background:linear-gradient(135deg,#4fd6ff,#2a3fb0)">i</div>
         <div><b>关于</b><small>大肥鱼 ${esc(v.app)}</small></div></div>
       <p class="mono">Electron ${esc(v.electron)} · Node ${esc(v.node)} · Chromium ${esc(v.chrome)}</p>
+      ${pet}
+      <p>大脑皮层网格：Anderson Winkler，Brain for Blender，CC BY-SA 3.0。</p>
     </div>`;
 }
 
@@ -78,7 +83,7 @@ export function renderLinks(root, S, actions) {
       </div>
       ${backups && backups.length ? `<ul class="intake-list">${backups.map((b) => `<li><span class="mono">${esc(b.day)}</span><span>${b.files} 个文件</span><b>${(b.bytes / 1024).toFixed(1)} KB</b></li>`).join('')}</ul>` : ''}
     </div>
-    ${aboutCard(S.versions)}`;
+    ${aboutCard(S.versions, S.petSkin)}`;
 
   const q = (s) => root.querySelector(s);
   q('#lk-save').addEventListener('click', () => {

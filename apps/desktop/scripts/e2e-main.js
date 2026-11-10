@@ -117,6 +117,37 @@ async function brightRatio(selector) {
   return bright / total;
 }
 
+/** 鲸鱼娘：视频在播、背景透明、没有缺的动画；发一句话会先思考再说话再庆祝；离开页面后暂停 */
+async function petChecks() {
+  await sleep(1200);
+  check('角色：用的是鲸鱼娘', await js('!!window.__petNow()'));
+  const t0 = await js("document.querySelector('.pet-video.front')?.currentTime ?? -1");
+  await sleep(1200);
+  const t1 = await js("document.querySelector('.pet-video.front')?.currentTime ?? -1");
+  check('角色：视频在播', t1 > t0 && t0 >= 0, `${t0} → ${t1}`);
+  const alpha = await js(`(()=>{const v=document.querySelector('.pet-video.front');const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(v,0,0);return [g.getImageData(3,3,1,1).data[3], g.getImageData(c.width-4,3,1,1).data[3]]})()`);
+  check('角色：背景是透明的', alpha.every((a) => a <= 1), alpha.join(','));
+  check('角色：没有缺失的动画文件', (await js('window.__petCoverage().length')) === 0);
+  // 页面刷新（心跳、来消息都会触发）不能打断正在播的动画
+  const before = await js("({clip: window.__petNow().clip, t: document.querySelector('.pet-video.front').currentTime})");
+  await js("window.__go('overview/now')");
+  await sleep(300);
+  const after = await js("({clip: window.__petNow().clip, t: document.querySelector('.pet-video.front').currentTime})");
+  check('角色：页面刷新不会打断正在播的动画', after.clip === before.clip && after.t > before.t, `${before.clip}@${before.t.toFixed(2)} → ${after.clip}@${after.t.toFixed(2)}`);
+  // 发一句话，记下她的动作变化
+  await js("window.__petTrace=[];window.__petTimer=setInterval(()=>{const n=window.__petNow();const k=n.action+'|'+(n.reaction||'');if(window.__petTrace[window.__petTrace.length-1]!==k)window.__petTrace.push(k)},20)");
+  await send('你在干嘛呀');
+  await sleep(600);
+  const trace = await js('(clearInterval(window.__petTimer), window.__petTrace)');
+  const seen = (x) => trace.some((k) => k.startsWith(x) || k.endsWith(`|${x}`));
+  check('角色：发一句话，先思考或说话，最后庆祝', (seen('think') || seen('talk')) && seen('done'), trace.join(' → ').slice(0, 160));
+  await js("window.__go('settings/general')");
+  await sleep(500);
+  check('角色：离开此刻页后视频暂停', await js("[...document.querySelectorAll('.pet-video')].every((v) => v.paused)"));
+  await js("window.__go('overview/now')");
+  await sleep(800);
+}
+
 async function mainScenario() {
   await sweep('没有数据时');
   const text = (await pageText());
@@ -167,7 +198,7 @@ async function mainScenario() {
   check('意识海画出来了', (await pixelSpread('#stage3d')) > 40);
   await js("window.__go('overview/now')");
   await sleep(800);
-  check('3D 鲸鱼画出来了', (await pixelSpread('#whaleCanvas')) > 40);
+  await petChecks();
 
   // 性能：反复切换后不能叠加渲染循环，内存不能一直涨
   await js(`(()=>{window.__rafReg=0;const o=window.requestAnimationFrame.bind(window);window.__origRaf=o;window.requestAnimationFrame=(f)=>{window.__rafReg++;return o(f)}})()`);
@@ -192,6 +223,7 @@ async function mainScenario() {
   await js("window.__go('settings/general')");
   check('设置页有 API Key 输入框', await js("!!document.querySelector('#lk-key')"));
   const about = await js("document.querySelector('#about')?.innerText || ''");
+  check('设置页署名了鲸鱼娘和皮层数据', about.includes('PC2005-cloud') && about.includes('禁止商用') && about.includes('Anderson Winkler'), about.replace(/\s+/g, ' ').slice(80, 200));
   check('设置页显示组件版本', about.includes(`大肥鱼 ${require('../package.json').version}`) && about.includes(`Electron ${process.versions.electron}`) && about.includes(`Node ${process.versions.node}`), about.replace(/\s+/g, ' ').slice(0, 80));
 }
 
@@ -205,6 +237,8 @@ async function restartScenario() {
 
 async function feverScenario() {
   await js("window.__go('overview/now')");
+  await sleep(800);
+  check('角色：发烧时是生病的样子', (await js('window.__petNow()?.action')) === 'sick', await js('JSON.stringify(window.__petNow())'));
   check('概览显示发烧', (await pageText()).includes('发烧'));
   await send('你怎么样');
   const b = requests.filter((x) => x.stream).pop();
@@ -217,9 +251,22 @@ async function feverScenario() {
   check('心率页有内容', (await pageText()).includes('心率'));
 }
 
+/** 素材目录不存在（比如商用时删掉了）：自动换回 3D 鲸鱼，程序照常运行 */
+async function noskinScenario() {
+  await js("window.__go('overview/now')");
+  await sleep(1200);
+  check('没有素材时：不用鲸鱼娘', (await js('window.__petNow()')) === null);
+  check('没有素材时：3D 鲸鱼画出来了', (await pixelSpread('#whaleCanvas')) > 40);
+  check('没有素材时：动作按钮还能点', await js("(()=>{document.querySelector('[data-pet-act=\"dance\"]').click();return true})()"));
+}
+
 async function hungryScenario() {
   await js("window.__go('overview/now')");
   check('概览显示饿了', /饿/.test(await pageText()));
+  await sleep(600);
+  // 饿了她会先去找零食吃，所以可能已经在吃了
+  check('角色：饿的时候在找吃的或者在吃', ['hungry', 'eat'].includes(await js('window.__petNow()?.action')), await js('JSON.stringify(window.__petNow())'));
+  check('角色：认识第一天不吃长寿面', (await js('window.__petNow()?.clip')) !== '吃长寿面');
   await send('在干嘛');
   const b = requests.filter((x) => x.stream).pop();
   check('饿的时候可怜巴巴', b.messages[0].content.includes('可怜巴巴'));
@@ -246,7 +293,7 @@ async function emptyScenario() {
   check('聊天栏的提示指向设置页', await js("document.querySelector('#goLinks').textContent.includes('设置')"));
 }
 
-const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario, upgrade: upgradeScenario, empty: emptyScenario };
+const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario, upgrade: upgradeScenario, empty: emptyScenario, noskin: noskinScenario };
 
 server.listen(0, '127.0.0.1', () => {
   if (scenario !== 'upgrade') process.env.DEEPSEEK_API_KEY = 'sk-e2e-mock-key-000000';

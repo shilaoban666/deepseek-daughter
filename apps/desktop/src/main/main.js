@@ -1,6 +1,7 @@
 // Electron 主进程
 
-const { app, BrowserWindow, ipcMain, Notification, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, safeStorage, shell, protocol, net } = require('electron');
+const { pathToFileURL } = require('url');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
@@ -12,6 +13,33 @@ const { DEFAULT_BASE } = require('./deepseek');
 const DEFAULT_MODEL = 'deepseek-chat';
 
 app.setName(APP_NAME);
+
+// 鲸鱼娘的动画走自定义协议 pet://<皮肤>/<文件名>.webm。页面的 CSP 只放行 media-src pet:，
+// 这样页面本身仍然读不了任意本地文件；协议处理器只认皮肤目录 clips/ 下的 .webm。
+protocol.registerSchemesAsPrivileged([{ scheme: 'pet', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }]);
+
+/** 皮肤目录：DFY_PET_DIR 优先（测试用），否则是 assets/pet/<皮肤>；打包后从 app.asar.unpacked 读 */
+function petDir(skin) {
+  if (process.env.DFY_PET_DIR) return path.resolve(process.env.DFY_PET_DIR);
+  return path.join(__dirname, '..', '..', 'assets', 'pet', skin).replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+}
+
+/** 读皮肤：映射表 + 实际有哪些动画文件。素材被删掉（比如商用时）就返回 null，界面改用 3D 鲸鱼 */
+function loadPetSkin(skin) {
+  try {
+    const dir = petDir(skin);
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'pet', skin, 'pet.json'), 'utf8'));
+    const clipsDir = path.join(dir, 'clips');
+    const available = fs.existsSync(clipsDir) ? fs.readdirSync(clipsDir).filter((f) => f.endsWith('.webm')).map((f) => f.slice(0, -5)) : [];
+    if (!available.length) return null;
+    let source = null;
+    try { source = JSON.parse(fs.readFileSync(path.join(dir, 'source.json'), 'utf8')); } catch { /* 没有也行 */ }
+    return { skin, manifest, available, baseUrl: `pet://${skin}`, source };
+  } catch (err) {
+    console.warn('[pet] 读不了皮肤，改用 3D 鲸鱼：', err.message);
+    return null;
+  }
+}
 if (process.env.DFY_DATA_DIR) {
   const dir = path.resolve(process.env.DFY_DATA_DIR);
   fs.mkdirSync(dir, { recursive: true }); // 目录不存在时单实例锁会失败
@@ -194,7 +222,7 @@ if (!app.requestSingleInstanceLock()) {
 
     // app.getVersion() 在用别的入口启动时（比如端到端测试）会退回 Electron 自己的版本号，直接读 package.json
     const versions = { app: require('../../package.json').version, electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome };
-    ipcMain.handle('init', () => ({ name: nameOf(settings), appName: APP_NAME, settings: publicSettings(), versions, ...daughter.snapshot() }));
+    ipcMain.handle('init', () => ({ name: nameOf(settings), appName: APP_NAME, settings: publicSettings(), versions, petConfig: config.get().pet || {}, ...daughter.snapshot() }));
     ipcMain.handle('refresh-balance', () => daughter.refreshBalance());
     ipcMain.handle('send', async (_e, text) => {
       if (typeof text !== 'string' || !text.trim()) return { ok: false };
@@ -226,6 +254,17 @@ if (!app.requestSingleInstanceLock()) {
       const read = (f) => fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'cortex', f));
       return { lh: read('lh.lod.bin'), rh: read('rh.lod.bin') };
     });
+    const petSkin = loadPetSkin(config.get().pet?.skin || 'whale-girl');
+    protocol.handle('pet', (req) => {
+      const url = new URL(req.url);
+      const name = decodeURIComponent(url.pathname.replace(/^\//, ''));
+      // 只认 clips/ 下的 .webm 文件名，不能带路径
+      if (!petSkin || url.hostname !== petSkin.skin || !name.endsWith('.webm') || /[\\/]|\.\./.test(name)) return new Response('not found', { status: 404 });
+      const file = path.join(petDir(petSkin.skin), 'clips', name);
+      if (!fs.existsSync(file)) return new Response('not found', { status: 404 });
+      return net.fetch(pathToFileURL(file).href).then((r) => new Response(r.body, { status: r.status, headers: { 'Content-Type': 'video/webm', 'Access-Control-Allow-Origin': '*' } }));
+    });
+    ipcMain.handle('pet-skin', () => petSkin);
     ipcMain.handle('add-anniversary', (_e, x) => daughter.addAnniversary(x));
     ipcMain.handle('remove-anniversary', (_e, id) => daughter.removeAnniversary(String(id)));
     ipcMain.handle('remove-slang', (_e, term) => daughter.removeSlang(String(term)));

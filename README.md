@@ -19,6 +19,13 @@
 
 ## 界面
 
+**概览 › 此刻**：她就是住在这里的鲸鱼娘。播什么动画由她真实的状态决定：到饭点在吃对应的那顿饭，困了打哈欠、睡着了盖着被子，你发消息时先思考、再说话、回完庆祝，夸她会害羞，查余额会掂钱袋，节日当天会过节。点她一下会冒一句话，按住能把她拎起来，右键能点播全部 114 段动画。头顶的小图标和气泡补充她的心情和念头。
+
+![概览 · 鲸鱼娘](docs/images/app-pet.jpg)
+
+角色动画来自 [dsh-pet](https://github.com/PC2005-cloud/dsh-pet)（作者 PC2005-cloud，素材禁止商用），见下面的“素材许可”。
+
+
 | 思考记忆 | 人格 |
 | --- | --- |
 | ![思考记忆](docs/images/app-memory.jpg) | ![人格](docs/images/app-persona.jpg) |
@@ -158,7 +165,10 @@ apps/desktop/
 
 仓库只收原创素材，或 CC0、CC-BY、OFL 许可的素材。别人的作品（包括风格参考图）不放进仓库。
 
-唯一的例外是 3D 大脑的皮层数据（`apps/desktop/assets/cortex/`）：网格来自 Anderson Winkler 的 Brain for Blender，经 [memory-brain](https://github.com/peterpoal134/memory-brain) 转换，许可是 CC BY-SA 3.0，这部分数据及其衍生数据不适用 Apache-2.0，署名见该目录的 `LICENSE-ATTRIBUTION.md`。
+例外有两个，各自的目录里都有 `LICENSE-ATTRIBUTION.md`：
+
+- **鲸鱼娘动画**（`apps/desktop/assets/pet/whale-girl/`）：来自 [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)，作者 PC2005-cloud。原作者条款：代码 MIT；**素材禁止商用**，二创在公开渠道须署名。这些素材不适用 Apache-2.0；商用本项目前必须删掉这个目录，程序会自动改用内置的原创 3D 鲸鱼。
+- 3D 大脑的皮层数据（`apps/desktop/assets/cortex/`）：网格来自 Anderson Winkler 的 Brain for Blender，经 [memory-brain](https://github.com/peterpoal134/memory-brain) 转换，许可是 CC BY-SA 3.0，这部分数据及其衍生数据不适用 Apache-2.0，署名见该目录的 `LICENSE-ATTRIBUTION.md`。
 
 ## 许可证
 

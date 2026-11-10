@@ -94,3 +94,17 @@ test('记忆四阶段', () => {
   assert.equal(stage({ layer: 'semantic', recallCount: 5, at: now - 40 * DAY }), 'third');
   assert.equal(stage({ layer: 'semantic', recallCount: 5, at: now - 10 * DAY }), 'second');
 });
+
+test('纪念日：第一次见面要到一周年才算，认识的当天不算', () => {
+  const anniversary = require('../src/main/anniversary');
+  const now = new Date(2026, 10, 10, 15).getTime();
+  const [first] = anniversary.upcoming([{ id: 'first-meet', title: '第一次见面', date: '2026-11-10', auto: true }], now, 400);
+  assert.equal(first.date, '2027-11-10');
+  assert.equal(first.daysLeft, 365);
+  assert.equal(first.years, 1);
+  const [later] = anniversary.upcoming([{ id: 'first-meet', title: '第一次见面', date: '2025-11-10', auto: true }], now, 400);
+  assert.equal(later.daysLeft, 0, '一年后的同一天才是纪念日');
+  // 自己添加的日子（比如生日）当天就算
+  const [bday] = anniversary.upcoming([{ id: 'b', title: '生日', date: '2026-11-10' }], now, 400);
+  assert.equal(bday.daysLeft, 0);
+});
