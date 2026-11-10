@@ -311,6 +311,22 @@ test('预算：没用完时照常调用', async () => {
   }
 });
 
+test('角色要用：你夸她时，发给界面的事件带上 praise', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-intent-'));
+  const stub = stubChat('嘿嘿');
+  try {
+    const d = new Daughter({ store: new JsonStore(dir), getSettings: () => ({ apiKey: 'sk-test', model: 'deepseek-chat' }) });
+    const seen = [];
+    d.on('vitals', (_v, events) => seen.push(...events));
+    await d.reply('你真棒，好厉害');
+    const user = seen.find((e) => e.type === 'user');
+    assert.deepEqual(user.intent, { praise: true, criticism: false, affection: false });
+  } finally {
+    stub.restore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('睡眠整理：模型连着几晚回坏格式，先提醒，第 3 次改做本地整理', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-badjson-'));
   const stub = stubChat('不好意思，我没法输出 JSON');

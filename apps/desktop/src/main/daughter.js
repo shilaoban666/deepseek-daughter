@@ -422,7 +422,9 @@ class Daughter extends EventEmitter {
       const userMsg = { role: 'user', content: text, at: now };
       this.history.push(userMsg);
       this.persist();
-      this.emit('vitals', this.vitalsSnapshot(), [...events, { type: 'user' }]);
+      // 界面上的角色要知道你是夸她还是凶她（只带这三个布尔值）
+      const intentFlags = { praise: !!analysis.praise, criticism: !!analysis.criticism, affection: !!analysis.affection };
+      this.emit('vitals', this.vitalsSnapshot(), [...events, { type: 'user', intent: intentFlags }]);
 
       if (!this.canSpend('chat')) {
         // 预算见底：她说累、想睡觉，而不是突然报错

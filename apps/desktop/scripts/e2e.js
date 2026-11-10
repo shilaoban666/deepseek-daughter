@@ -36,12 +36,14 @@ const SCENARIOS_ALL = [
   { name: 'hungry', dir: 'hungry', seed: (b, s) => { s.satiety = 10; b.stomach = 0; b.intestine = 0; } },
   { name: 'upgrade', dir: 'upgrade', copyFrom: UPGRADE_FIXTURE },
   // 刚主动找过人、也不孤单：启动后不会马上开口，存档里保持一条记忆都没有
+  // 鲸鱼娘素材不存在：指向一个空目录
+  { name: 'noskin', dir: 'noskin', env: { DFY_PET_DIR: path.join(base, 'no-pet-skin') } },
   { name: 'empty', dir: 'empty', seed: (b, s) => { s.social = 90; s.mood = 0.1; s.lastProactiveAt = Date.now(); s.lastUserAt = Date.now(); } },
 ];
 // 只跑部分场景：E2E_ONLY=hungry,upgrade npm run e2e
 const SCENARIOS = process.env.E2E_ONLY ? SCENARIOS_ALL.filter((s) => process.env.E2E_ONLY.split(',').includes(s.name)) : SCENARIOS_ALL;
 
-function run({ name, dir, seed: patch, copyFrom }) {
+function run({ name, dir, seed: patch, copyFrom, env: extraEnv }) {
   const data = path.join(base, dir);
   if (copyFrom) {
     if (!fs.existsSync(copyFrom)) {
@@ -52,7 +54,7 @@ function run({ name, dir, seed: patch, copyFrom }) {
   }
   fs.mkdirSync(data, { recursive: true });
   if (patch) seed(data, patch);
-  const env = { ...process.env, DFY_DATA_DIR: data, E2E_SCENARIO: name };
+  const env = { ...process.env, DFY_DATA_DIR: data, E2E_SCENARIO: name, ...(extraEnv || {}) };
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.DFY_SHOT;
   return new Promise((resolve) => {

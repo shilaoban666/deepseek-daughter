@@ -175,6 +175,15 @@
     "maxTokensEstimate": 6000
   },
 
+  "pet": {
+    "_comment": "概览页的角色。skin 对应 assets/pet/<skin>/；素材不在时自动用 3D 鲸鱼",
+    "skin": "whale-girl",
+    "bubbleSeconds": 3,
+    "pokeCooldownMs": 400,
+    "greetAfterHours": 3,
+    "balanceTiers": [1, 5, 10, 20, 50]
+  },
+
   "backup": {
     "enabled": true,
     "keepDays": 7,
