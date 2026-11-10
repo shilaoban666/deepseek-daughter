@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('fish', {
   init: () => ipcRenderer.invoke('init'),
   cortex: () => ipcRenderer.invoke('cortex'),
   petSkin: () => ipcRenderer.invoke('pet-skin'),
+  // 平台插件：清单、保存设置、令牌（生成 / 复制到剪贴板，拿不到明文）
+  channelsList: () => ipcRenderer.invoke('channels-list'),
+  channelsSave: (id, values) => ipcRenderer.invoke('channels-save', id, values),
+  channelsSecret: (id, action) => ipcRenderer.invoke('channels-secret', id, action),
   send: (text) => ipcRenderer.invoke('send', text),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   // 记忆：忘掉（归档）、恢复、彻底删除、改内容、处理矛盾

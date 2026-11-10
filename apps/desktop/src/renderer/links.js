@@ -1,17 +1,6 @@
-// 设置页：DeepSeek、名字、备份。平台列表 PLATFORMS 给「发现探索」用。
+// 设置页：DeepSeek、名字、备份、关于。平台插件在「发现探索」（views/explore.js）。
 
 import { esc } from './util.js';
-
-export const PLATFORMS = [
-  { name: 'QQ', color: '#1d9bf0', mark: 'Q', stage: '阶段 3', desc: '通过 OneBot（NapCat / LLOneBot）住进 QQ：私聊、群聊、主动找你。', field: { key: 'onebotUrl', label: 'OneBot WebSocket 地址', ph: 'ws://127.0.0.1:3001' } },
-  { name: '微信', color: '#07c160', mark: '微', stage: '阶段 3', desc: '在微信里和你聊天、发朋友圈评论（需要你同意才发）。' },
-  { name: 'B 站', color: '#fb7299', mark: 'B', stage: '阶段 4', desc: '自己刷视频、看字幕“吃饭”，把看到的有意思的东西讲给你听。' },
-  { name: '小说', color: '#c9853f', mark: '书', stage: '阶段 4', desc: '读你推荐的小说，读完写读后感，记住剧情和人物。' },
-  { name: '抖音', color: '#25f4ee', mark: '抖', stage: '阶段 5', desc: '刷短视频，偶尔留言。' },
-  { name: '小红书', color: '#ff2442', mark: '红', stage: '阶段 5', desc: '看笔记、收藏喜欢的东西。' },
-  { name: 'X', color: '#8899a6', mark: 'X', stage: '阶段 5', desc: '关注感兴趣的话题。' },
-  { name: 'YouTube', color: '#ff0033', mark: '▶', stage: '阶段 5', desc: '看视频、学东西。' },
-];
 
 const MODELS = [
   ['deepseek-chat', 'deepseek-chat（日常聊天，推荐）'],
