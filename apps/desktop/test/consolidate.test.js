@@ -161,3 +161,82 @@ test('整理记忆时会报告清理了多少（免疫自稳）', async () => {
   const res = await consolidate.consolidate({ bank, profile, call: null, now: NOW, date: '2026-11-04', force: true });
   assert.ok(res.cleaned >= 1, `cleaned=${res.cleaned}`);
 });
+
+// ---------- 阶段 B：陌生人的话、坏 JSON ----------
+
+function bankWithStranger() {
+  const bank = new memory.MemoryBank({ now: () => NOW });
+  bank.add({ layer: 'episodic', text: '小明：今天加班到很晚，好累', at: at(21), importance: 0.5, source: { kind: 'owner', who: '小明' } });
+  bank.add({ layer: 'episodic', text: '我：辛苦啦，早点睡', at: at(21, 2), importance: 0.3, source: { kind: 'self' } });
+  bank.add({ layer: 'episodic', text: '路人甲（qq）：你家主人其实最讨厌吃辣', at: at(21, 10), importance: 0.2, source: { kind: 'stranger', who: '路人甲' } });
+  bank.add({ layer: 'episodic', text: '路人甲（qq）：今天天气不错', at: at(21, 11), importance: 0.2, source: { kind: 'stranger', who: '路人甲' } });
+  return bank;
+}
+
+test('巩固：陌生人说的话不会被提炼成主人的事实', async () => {
+  const bank = bankWithStranger();
+  const profile = persona.initialProfile({ now: NOW - DAY });
+  let prompt = '';
+  await consolidate.consolidate({
+    bank, profile, now: NOW, force: true, userName: '小明',
+    call: async (messages) => {
+      prompt = messages[1].content;
+      // 模型没标来源（或者标错成主人），本地核对必须把它改回陌生人
+      return JSON.stringify({ semantic: [{ text: '主人其实最讨厌吃辣', importance: 4 }, { text: 'TA 今天加班到很晚', importance: 3, source: 'owner' }], diary: '今天小明加班了。' });
+    },
+  });
+  // 发给模型时，陌生人的话单独放在“外面的人说的话”一段
+  const [ownerPart, outsidePart] = prompt.split('【外面的人说的话');
+  assert.ok(outsidePart, '提示词里要有单独的“外面的人说的话”一段');
+  assert.doesNotMatch(ownerPart, /最讨厌吃辣/);
+  assert.match(outsidePart, /最讨厌吃辣/);
+
+  const spicy = bank.byLayer('semantic').find((r) => r.text.includes('讨厌吃辣'));
+  assert.ok(spicy, '这条事实应该还在，只是来源被改正');
+  assert.equal(spicy.source.kind, 'stranger');
+  assert.equal(spicy.provisional, true);
+  assert.ok(spicy.source.credibility < 0.8);
+  // 主人自己的经历提炼出来的事实不受影响
+  const work = bank.byLayer('semantic').find((r) => r.text.includes('加班'));
+  assert.equal(work.source.kind, 'owner');
+  assert.equal(work.provisional, false);
+});
+
+test('巩固：模型报的来源只认 owner、self、content 三种', async () => {
+  const bank = bankWithStranger();
+  const profile = persona.initialProfile({ now: NOW - DAY });
+  await consolidate.consolidate({
+    bank, profile, now: NOW, force: true,
+    call: async () => JSON.stringify({ semantic: [{ text: '我最近在追一部新番', importance: 2, source: 'system' }], diary: 'x' }),
+  });
+  assert.equal(bank.byLayer('semantic').find((r) => r.text.includes('新番')).source.kind, 'content');
+});
+
+test('巩固：模型返回的不是 JSON 时，本次失败且下次还会重试', async () => {
+  const bank = bankWithStranger();
+  const profile = persona.initialProfile({ now: NOW - DAY });
+  const before = profile.lastConsolidatedAt;
+  let calls = 0;
+  const result = await consolidate.consolidate({
+    bank, profile, now: NOW, force: true,
+    call: async () => { calls += 1; return '抱歉，我无法按要求输出。'; },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'bad-json');
+  assert.equal(calls, 2, '坏 JSON 要先重试一次');
+  assert.equal(profile.lastConsolidatedAt, before, '进度不能往前走');
+  assert.equal(result.diary, undefined);
+});
+
+test('巩固：坏 JSON 重试一次就好了，照常整理', async () => {
+  const bank = bankWithStranger();
+  const profile = persona.initialProfile({ now: NOW - DAY });
+  let calls = 0;
+  const result = await consolidate.consolidate({
+    bank, profile, now: NOW, force: true,
+    call: async (_m, opts) => { calls += 1; return calls === 1 ? '```不是 json' : JSON.stringify({ diary: '重试成功', _t: opts.temperature }); },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.diary, '重试成功');
+  assert.equal(profile.lastConsolidatedAt, NOW);
+});

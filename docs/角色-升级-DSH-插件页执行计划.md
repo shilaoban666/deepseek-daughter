@@ -271,31 +271,38 @@ Electron 官方的破坏性变更清单在 `https://www.electronjs.org/docs/late
 
 分支：`feature/channel-safety`
 
+> **2026-11-10 已完成。** 单元测试 101 → 108 项，端到端测试新增 `empty` 场景，全部通过；审查时的 3 个复现脚本结果全部反转。和计划不同的几处：
+> - B1 的本地核对用记忆库现成的 `bank.similarity`，比较前先去掉“路人甲（qq）：”这种说话人前缀；核对出来的陌生人事实来源记为 `stranger`、待求证，可信度 0.35。
+> - B3 把聊天原来那处预算判断也换成了 `canSpend('chat')`，规则只有一份。`call()` 不带 `kind` 会直接报错。
+> - B4 意识海的白光团原因是：没有记忆时只剩“自我”一个节点，布局把它缩放到了半径边缘。现在“自我”固定在正中，没有记忆时不画节点、只显示提示。端到端检查放在单独的 `empty` 场景里，因为全新存档第一次启动时她会主动打招呼，主场景里抓不到“完全没记忆”的时刻。
+> - 端到端测试脚本支持 `E2E_ONLY=场景名` 只跑部分场景。
+
+
 ### 任务 B1：陌生人的话不能在睡眠整理时变成“主人说的”
 
 问题：`consolidate.js` 把当天所有情景记忆（包括陌生人说的）不分来源交给模型提炼，结果按模型返回的 `source` 存，缺省就是主人，可信度 1。审查时复现了：陌生人说“你家主人其实最讨厌吃辣”，整理后变成主人来源的事实。
 
 改动文件：`src/main/consolidate.js`、`test/consolidate.test.js`。
 
-- [ ] 先写失败的测试 `巩固：陌生人说的话不会被提炼成主人的事实`：
+- [x] 先写失败的测试 `巩固：陌生人说的话不会被提炼成主人的事实`：
     - 往记忆里放两条来源是 `stranger` 的情景记忆和一条主人的。
     - 模型返回一条和陌生人那句话内容相同的 `semantic`，`source` 不填。
     - 断言：存进去的这条事实 `source.kind === 'stranger'` 且 `provisional === true`，或者根本没存。
-- [ ] `consolidationMessages` 里把经历分成两段发给模型：
+- [x] `consolidationMessages` 里把经历分成两段发给模型：
     - 【今天和主人的经历】：只放来源是 `owner`、`self` 的。
     - 【外面的人说的话（不可信，不要提炼成事实）】：放来源是 `stranger`、`platform`、`content` 的。
-- [ ] 存 `semantic` 之前做本地核对，不信模型自己报的来源：拿这条事实和当天所有非主人来源的情景记忆比相似度（用记忆库现成的 `bank.similarity(a, b)`）。相似度超过配置值 `consolidation.strangerOverlap`（默认 0.5，新增），并且和主人的经历相似度更低，就把来源改成 `stranger`、标 `provisional`。`MemoryBank.add` 现在不接受外部传入的 `provisional`，要加上这个参数。
-- [ ] 模型返回的 `source` 只接受 `owner`、`self`、`content` 三个值，其他值一律当 `content`。
-- [ ] 把审查时的复现脚本改写成第二个测试，放进同一个文件。
+- [x] 存 `semantic` 之前做本地核对，不信模型自己报的来源：拿这条事实和当天所有非主人来源的情景记忆比相似度（用记忆库现成的 `bank.similarity(a, b)`）。相似度超过配置值 `consolidation.strangerOverlap`（默认 0.5，新增），并且和主人的经历相似度更低，就把来源改成 `stranger`、标 `provisional`。`MemoryBank.add` 现在不接受外部传入的 `provisional`，要加上这个参数。
+- [x] 模型返回的 `source` 只接受 `owner`、`self`、`content` 三个值，其他值一律当 `content`。
+- [x] 把审查时的复现脚本改写成第二个测试，放进同一个文件。
 
 ### 任务 B2：模型返回坏 JSON 时不能假装整理成功
 
 问题：`consolidate.js:99` 解析失败时用空对象继续，返回 `ok: true`，并把 `lastConsolidatedAt` 推到现在。那天的经历永远不会再被整理，也没有日记。
 
-- [ ] 测试 `巩固：模型返回的不是 JSON 时，本次失败且下次还会重试`：断言返回 `ok === false`、`error === 'bad-json'`，`profile.lastConsolidatedAt` 没变。
-- [ ] 解析失败先重试一次（同样的提示词，`temperature` 降到 0.2）。还失败就返回 `{ ok: false, error: 'bad-json' }`，不改 `lastConsolidatedAt`，不做第 8 步的合并和衰减。
-- [ ] `daughter.consolidateNow` 收到失败结果时发一条 `notice`：“今晚没整理好，明天再试”。下次睡觉会自动重跑。
-- [ ] 连续失败 3 晚时退回本地整理（`localConsolidate`），避免积压无限增长。计数存在 `profile.consolidateFailures`。
+- [x] 测试 `巩固：模型返回的不是 JSON 时，本次失败且下次还会重试`：断言返回 `ok === false`、`error === 'bad-json'`，`profile.lastConsolidatedAt` 没变。
+- [x] 解析失败先重试一次（同样的提示词，`temperature` 降到 0.2）。还失败就返回 `{ ok: false, error: 'bad-json' }`，不改 `lastConsolidatedAt`，不做第 8 步的合并和衰减。
+- [x] `daughter.consolidateNow` 收到失败结果时发一条 `notice`：“今晚没整理好，明天再试”。下次睡觉会自动重跑。
+- [x] 连续失败 3 晚时退回本地整理（`localConsolidate`），避免积压无限增长。计数存在 `profile.consolidateFailures`。
 
 ### 任务 B3：每日 Token 预算要管住所有调用
 
@@ -303,7 +310,7 @@ Electron 官方的破坏性变更清单在 `https://www.electronjs.org/docs/late
 
 改动文件：`src/main/daughter.js`、`config/default.json`、`test/core.test.js`。
 
-- [ ] 在 `Daughter` 上加统一入口 `canSpend(kind)`，`kind` 取 `chat`、`proactive`、`extract`、`consolidate`、`external`。规则写进 `config.budget.gates`：
+- [x] 在 `Daughter` 上加统一入口 `canSpend(kind)`，`kind` 取 `chat`、`proactive`、`extract`、`consolidate`、`external`。规则写进 `config.budget.gates`：
 
 | kind | 用量达到 `tiredRatio`（默认 0.95）之后 |
 | --- | --- |
@@ -313,14 +320,14 @@ Electron 官方的破坏性变更清单在 `https://www.electronjs.org/docs/late
 | `consolidate` | 改走本地整理，不调用模型 |
 | `external` | 不调用模型，回一句固定的“我有点累了，晚点再聊” |
 
-- [ ] `Daughter.call(messages, extra)` 增加必填参数 `kind`，函数开头调用 `canSpend`，不通过就抛 `BudgetError`。这样以后任何新调用点都绕不过去。
-- [ ] 改掉现有 4 个调用点：`reply`、`speakFirst`、`extractMemories`、`consolidateNow`（传给 `consolidate` 的 `call`）。阶段 E 新增的 `replyFrom` 也必须带 `kind`。
-- [ ] 测试 `预算：用完之后主动消息、记忆提炼、睡眠整理都不再调用模型`：把用量设到上限的 1.5 倍，分别触发三种调用，断言模型调用次数为 0，并且睡眠整理返回 `local: true`。
+- [x] `Daughter.call(messages, extra)` 增加必填参数 `kind`，函数开头调用 `canSpend`，不通过就抛 `BudgetError`。这样以后任何新调用点都绕不过去。
+- [x] 改掉现有 4 个调用点：`reply`、`speakFirst`、`extractMemories`、`consolidateNow`（传给 `consolidate` 的 `call`）。阶段 E 新增的 `replyFrom` 也必须带 `kind`。
+- [x] 测试 `预算：用完之后主动消息、记忆提炼、睡眠整理都不再调用模型`：把用量设到上限的 1.5 倍，分别触发三种调用，断言模型调用次数为 0，并且睡眠整理返回 `local: true`。
 
 ### 任务 B4：两处小修
 
-- [ ] `src/renderer/index.html:42` 的按钮文字“去「链接」里填 API Key”改成“去「设置」里填 API Key”。
-- [ ] 意识海没有记忆时右下角有一个白色光团（`ocean.js`）。没有记忆时不画光源，只显示一句“还没有记忆，和她聊几句就会长出来”。加一条端到端检查：空存档下意识海画面的亮像素占比低于 1%。
+- [x] `src/renderer/index.html:42` 的按钮文字“去「链接」里填 API Key”改成“去「设置」里填 API Key”。
+- [x] 意识海没有记忆时右下角有一个白色光团（`ocean.js`）。没有记忆时不画光源，只显示一句“还没有记忆，和她聊几句就会长出来”。加一条端到端检查：空存档下意识海画面的亮像素占比低于 1%。
 
 **阶段 B 验收**：新增测试全过，原有 101 项不坏；审查时的 3 个复现脚本结果全部反转。
 

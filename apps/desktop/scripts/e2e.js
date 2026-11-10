@@ -29,13 +29,17 @@ function seed(dir, patch) {
 // 生成方法见 docs/notes/electron-upgrade.md；没有这个目录就跳过。
 const UPGRADE_FIXTURE = path.join(root, '.testdata', 'upgrade');
 
-const SCENARIOS = [
+const SCENARIOS_ALL = [
   { name: 'main', dir: 'main' },
   { name: 'restart', dir: 'main' },
   { name: 'fever', dir: 'fever', seed: (b) => { b.fever = true; b.immunity = 40; b.temp = 38.1; } },
   { name: 'hungry', dir: 'hungry', seed: (b, s) => { s.satiety = 10; b.stomach = 0; b.intestine = 0; } },
   { name: 'upgrade', dir: 'upgrade', copyFrom: UPGRADE_FIXTURE },
+  // 刚主动找过人、也不孤单：启动后不会马上开口，存档里保持一条记忆都没有
+  { name: 'empty', dir: 'empty', seed: (b, s) => { s.social = 90; s.mood = 0.1; s.lastProactiveAt = Date.now(); s.lastUserAt = Date.now(); } },
 ];
+// 只跑部分场景：E2E_ONLY=hungry,upgrade npm run e2e
+const SCENARIOS = process.env.E2E_ONLY ? SCENARIOS_ALL.filter((s) => process.env.E2E_ONLY.split(',').includes(s.name)) : SCENARIOS_ALL;
 
 function run({ name, dir, seed: patch, copyFrom }) {
   const data = path.join(base, dir);
