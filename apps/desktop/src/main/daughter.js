@@ -303,6 +303,8 @@ class Daughter extends EventEmitter {
 
   sample() {
     const { pad } = this.mind();
+    const b = this.body;
+    const ph = b.phys;
     this.vitals.push({
       t: this.now(),
       satiety: Math.round(this.state.satiety),
@@ -313,6 +315,20 @@ class Daughter extends EventEmitter {
       oxytocin: Math.round(this.body.nt.oxytocin),
       urge: this.urges?.top?.value || 0,
       hr: Math.round(this.body.phys.vitals.heartRate),
+      // 各系统页的曲线用（旧存档里没有这些字段，界面会跳过缺的点）
+      rr: Math.round(ph.vitals.respRate * 10) / 10,
+      glucose: physiology.H.glucoseMmol(b.glucose),
+      stomach: Math.round(b.stomach),
+      intestine: Math.round(b.intestine),
+      hydration: Math.round(b.hydration),
+      temp: Math.round(b.temp * 100) / 100,
+      bladder: Math.round(ph.urinary.bladder),
+      insulin: Math.round(ph.hormones.insulin),
+      glucagon: Math.round(ph.hormones.glucagon),
+      melatonin: Math.round(b.nt.melatonin),
+      immunity: Math.round(b.immunity),
+      symp: Math.round(ph.autonomic.sympathetic * 100),
+      para: Math.round(ph.autonomic.parasympathetic * 100),
     });
     if (this.vitals.length > VITALS_MAX) this.vitals.splice(0, this.vitals.length - VITALS_MAX);
   }

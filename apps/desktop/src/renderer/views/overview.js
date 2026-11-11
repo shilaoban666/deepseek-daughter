@@ -3,6 +3,7 @@
 import { esc, fmtClock } from '../util.js';
 import { card, causeList, lead, nothing, status, word3 } from './ui.js';
 import { trendsHtml, bindTrends } from './trends.js';
+import { radar } from './charts.js';
 
 const tile = (name, word, warn) => `<div class="p tile"><span>${esc(name)}${warn ? ' <b class="warn">⚠</b>' : ''}</span><div class="tile-word">${esc(word)}</div></div>`;
 
@@ -39,7 +40,7 @@ function now(el, ctx) {
       ${tile('陪伴', word3(s.social, '想你了', '还好', '很满足'), s.social < 25)}
       ${tile('身体', b.fever ? '发烧了' : '舒服', !!b.fever)}
     </div>
-    ${card('八大生命系统', `<div class="sys-row">${r.systems.map((x) => `<div class="${x.status === 'warn' ? 'sys-warn' : ''}"><b>${esc(x.name)}</b> ${status(x)}</div>`).join('')}</div>`, `${r.systems.filter((x) => x.status === 'ok').length} 项正常`)}
+    ${card('八大生命系统', `<div class="sysgrid">${radar(r.systems.map((x) => ({ name: x.name, value: x.value, warn: x.status === 'warn' })))}<div class="sysbars">${r.systems.map((x) => `<div class="sysbar ${x.status === 'warn' ? 'sys-warn' : ''}" title="${esc(x.why || '')}"><div class="h"><b>${esc(x.name)}</b>${status(x)}</div><div class="tr"><i style="width:${Math.max(0, Math.min(100, x.value))}%"></i></div></div>`).join('')}</div></div>`, `${r.systems.filter((x) => x.status === 'ok').length} 项正常`)}
     <div class="g2">
       ${card('此刻在想', thought ? `<div class="quote">“${esc(thought.text)}”</div><div class="dim sm">${fmtClock(thought.at)}</div>` : '<div class="dim">脑子里空空的</div>')}
       ${card('为什么会这样', causeList(b))}

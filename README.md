@@ -100,12 +100,16 @@
 <td><img src="docs/images/shots/persona.jpg" alt="人格"><br><div align="center"><b>人格</b><br><sub>天性和后天性格并排，成长记录带原因，一键撤销</sub></div></td>
 </tr>
 <tr>
-<td><img src="docs/images/shots/digestion.jpg" alt="代谢活动"><br><div align="center"><b>代谢</b><br><sub>Token 怎么被吃下去、消化掉、变成精力</sub></div></td>
-<td><img src="docs/images/shots/immunity.jpg" alt="免疫活动"><br><div align="center"><b>免疫</b><br><sub>谁试探过她、拦下了什么、她现在有没有发烧</sub></div></td>
+<td><img src="docs/images/shots/digestion.jpg" alt="消化活动"><br><div align="center"><b>消化</b><br><sub>胃、小肠、血糖、肝糖原的液面就是现在的量；血糖曲线带参考范围</sub></div></td>
+<td><img src="docs/images/shots/breath.jpg" alt="呼吸与心率"><br><div align="center"><b>监护仪</b><br><sub>心电和呼吸波形按她现在的心率画，仪表上的绿色弧是参考范围</sub></div></td>
 </tr>
 <tr>
+<td><img src="docs/images/shots/immunity.jpg" alt="免疫活动"><br><div align="center"><b>免疫</b><br><sub>免疫器官、三类免疫细胞的占比、免疫力的变化、有没有发烧</sub></div></td>
 <td><img src="docs/images/shots/kernel.jpg" alt="内核"><br><div align="center"><b>内核</b><br><sub>内嵌的 DSH，通过生命网关和她的大脑接通</sub></div></td>
+</tr>
+<tr>
 <td><img src="docs/images/shots/plugins-qq.jpg" alt="平台插件"><br><div align="center"><b>平台插件</b><br><sub>QQ、微信的设置已经能填，连接功能下一版开放</sub></div></td>
+<td><img src="docs/images/shots/plugins.jpg" alt="平台插件总览"><br><div align="center"><b>全部平台</b><br><sub>QQ、微信和 6 个内容平台，一张卡片一个</sub></div></td>
 </tr>
 </table>
 

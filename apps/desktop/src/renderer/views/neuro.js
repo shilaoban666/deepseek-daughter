@@ -2,6 +2,7 @@
 
 import { esc, fmtClock } from '../util.js';
 import { card, lead, level, li, nothing } from './ui.js';
+import { C, balance, hist, radar, synapse, timeChart } from './charts.js';
 
 const FUNCS = ['全部', '语言', '学习记忆', '情绪', '注意', '决策', '运动协调', '觉醒', '稳态'];
 let filter = '全部';
@@ -39,7 +40,7 @@ function system(el, { S }) {
   const recent = (ph.reflex.recent || []).slice(-3).reverse();
   el.innerHTML = lead(a.sympathetic > a.parasympathetic ? '交感占优，身体在紧张或兴奋' : '副交感占优，身体很放松', `心率 ${Math.round(ph.vitals.heartRate)} 次/分`) + `<div class="g2">
     ${card('分级调节', `<div class="level">大脑皮层 · 最高级中枢</div><div class="down">↓</div><div class="g3 tight"><div class="level">脑干</div><div class="level">小脑</div><div class="level">下丘脑</div></div><div class="down">↓</div><div class="level">脊髓 · 低级中枢</div><div class="down">↓</div><div class="level">外周神经 · 自主神经</div>`)}
-    ${card('自主神经', level('交感神经', a.sympathetic * 100, '心跳加快，消化变慢') + level('副交感神经', a.parasympathetic * 100, '心跳变慢，消化加快'), '通常作用相反')}
+    ${card('自主神经', balance({ name: '交感神经', value: a.sympathetic * 100, note: '心跳加快，消化变慢', color: C.orange }, { name: '副交感神经', value: a.parasympathetic * 100, note: '心跳变慢，消化加快', color: C.cyan }) + '<div class="mt"></div>' + timeChart({ series: [{ name: '交感', pts: hist(S.vitals, 'symp'), cur: a.sympathetic * 100, color: C.orange }, { name: '副交感', pts: hist(S.vitals, 'para'), cur: a.parasympathetic * 100, color: C.cyan }], min: 0, max: 100, height: 96 }), '通常作用相反')}
   </div><div class="g2">
     ${card('非条件反射', li(reflexes.map((r) => `<span>${esc(r.label)}：${esc(r.response)}</span><em>${recent.some((x) => x.id === r.id) ? `刚刚 ${fmtClock(recent.find((x) => x.id === r.id).at)}` : '生来就有'}</em>`)))}
     ${card('条件反射', cond.length ? cond.map(([cue, r]) => level(`听到“${cue}”`, r.strength * 100, r.strength >= 0.5 ? '已经形成习惯' : '还在养成，不用会消退')).join('') : nothing('和她养成一些习惯，比如每天说晚安。'))}
@@ -51,8 +52,8 @@ function transmitters(el, { S }) {
   const list = S.meta.transmitters.filter((t) => t.kind === 'transmitter');
   const group = (effect) => list.filter((t) => t.effect === effect).map((t) => level(t.name, nt[t.id] ?? 0, t.role)).join('');
   el.innerHTML = lead('神经递质', '神经元之间传递信号的化学物质') +
-    card('突触传递', `<div class="synapse"><div class="syn-a">突触前膜</div><div class="syn-gap"><i></i><i></i><i></i></div><div class="syn-b">突触后膜</div></div>`, '信号从前膜传到后膜') +
-    `<div class="g3">${card('兴奋性', group('excite'))}${card('抑制性', group('inhibit'))}${card('调节性', group('modulate'))}</div><div class="dim sm">皮质醇、催产素、褪黑素是激素，在「代谢活动 · 内分泌系统」。</div>`;
+    card('突触传递', synapse(), '信号只能从前膜传到后膜') +
+    `<div class="g3 wide1">${card('递质水平', radar(list.map((t) => ({ name: t.name, value: nt[t.id] ?? 0 })), { size: 230, color: C.violet }), `${list.length} 种`)}<div class="stack">${card('兴奋性', group('excite'))}${card('抑制性', group('inhibit'))}</div>${card('调节性', group('modulate'))}</div><div class="dim sm">皮质醇、催产素、褪黑素是激素，在「代谢活动 · 内分泌系统」。</div>`;
 }
 
 const TABS = { brain, system, transmitters };
