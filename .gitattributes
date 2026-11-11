@@ -1,0 +1,3 @@
+# GitHub 语言统计不算这些：早期原型和第三方代码
+prototype/** linguist-vendored
+apps/desktop/src/renderer/vendor/** linguist-vendored
