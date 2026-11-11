@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 先看看设计文档
+    url: https://github.com/shilaoban666/deepseek-daughter/blob/master/docs/设计文档.md
+    about: 她是什么、为什么这么设计，大部分“为什么”都在这里
+  - name: 🗺️ 路线图和里程碑
+    url: https://github.com/shilaoban666/deepseek-daughter/milestones
+    about: 每个版本要做什么，哪些任务可以认领

@@ -1,0 +1,28 @@
+name: 💬 她哪里不像人
+description: 她说了奇怪的话、记错了事、该找你的时候没找你。这类反馈对我们最有用
+title: "[不像人] "
+labels: ["像不像人"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 她做了什么
+      description: 把那段对话或者那个时刻描述一下。可以贴原话，注意隐去你不想公开的内容。
+    validations:
+      required: true
+  - type: textarea
+    id: expect
+    attributes:
+      label: 一个真的人会怎么做
+    validations:
+      required: true
+  - type: textarea
+    id: state
+    attributes:
+      label: 她当时的状态（可选）
+      description: 「概览 › 此刻」里的“为什么会这样”，或者当时是饿、困、发烧、刚睡醒
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      placeholder: 大肥鱼 0.3.0

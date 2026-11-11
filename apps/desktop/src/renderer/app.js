@@ -2,6 +2,7 @@
 
 import { createBrain } from './brain.js';
 import { createWhale } from './whale3d.js';
+import { createPet } from './pet/index.js';
 import { NAV, DEFAULT_ROUTE, parseRoute, routes } from './nav-data.mjs';
 import { $, esc, fmtTime, fmtClock } from './util.js';
 import * as overview from './views/overview.js';
@@ -45,6 +46,8 @@ const stage3d = $('#stage3d');
 const canvas = $('#brainCanvas');
 const whaleCanvas = $('#whaleCanvas');
 let brain = null, brainLoading = null, stageMode = null, labelsOn = false, whale = null;
+// 鲸鱼娘：petSkin 是主进程给的皮肤信息；没有素材时为 null，用 3D 鲸鱼
+let pet = null, petSkin = null, petBroken = false;
 
 const KIND = { semantic: '语义记忆', episodic: '情景记忆', reflection: '反思', procedural: '程序记忆', self: '自我叙事', diary: '日记' };
 
@@ -148,12 +151,39 @@ const gl = {
     }
   },
   whaleAct: (name) => whale?.act(name),
+  /** 概览页的角色：有鲸鱼娘素材就用她，没有就用 3D 鲸鱼 */
+  attachPet(host) {
+    if (petSkin && !petBroken) {
+      pet ||= createPet({
+        info: petSkin,
+        getVitals: () => S.vitals,
+        anniversaryToday: () => !!S.us?.anniversaries?.some((x) => x.daysLeft === 0),
+        config: S.petConfig || {},
+        onBroken: () => { petBroken = true; pet?.pause(); pet?.root.remove(); renderPage(); },
+      });
+      host.classList.add('has-pet');
+      pet.attach(host);
+      return 'pet';
+    }
+    gl.attachWhale(host);
+    return 'whale';
+  },
+  /** 按钮：摸摸她、跳支舞、看钱包、换一个。3D 鲸鱼时换成它的动作 */
+  petAct(name) {
+    if (pet && !petBroken) return pet.act(name);
+    whale?.act({ poke: 'jump', dance: 'spin', wallet: 'spout', next: 'wag' }[name] || 'wag');
+  },
+  hasPet: () => !!(petSkin && !petBroken),
   focusRegions: (ids) => brain?.focusRegions(ids),
   park() {
     stageMode = null;
     glPark.append(stage3d, whaleCanvas);
+    if (pet) glPark.append(pet.root);
     brain?.pause();
     whale?.pause();
+    // 页面每次刷新都会先停车再挂回去。角色如果马上被挂回来（还在概览页），就别暂停，
+    // 否则每次心跳、每条消息都会让她重新挑一段动画
+    queueMicrotask(() => { if (pet && glPark.contains(pet.root)) pet.pause(); });
     onHover(null);
   },
 };
@@ -249,9 +279,18 @@ function bubble(role, text, cls = '') {
   msgs.appendChild(el);
   return el;
 }
+/** 不是在桌面聊天栏里说的话，旁边带个小标（这一期只有“经内核”） */
+const CHANNEL_WORD = { kernel: '经内核' };
+function channelTag(channel, mine) {
+  const t = document.createElement('div');
+  t.className = `channel-tag ${mine ? 'me' : ''}`;
+  t.textContent = CHANNEL_WORD[channel] || `经${channel}`;
+  msgs.appendChild(t);
+}
 /** 她的一条回复按换行拆成几条气泡，像 QQ 上连发几句 */
-function herLines(text, at, proactive) {
+function herLines(text, at, proactive, channel) {
   stamp(at || Date.now());
+  if (channel) channelTag(channel, false);
   if (proactive) {
     const t = document.createElement('div');
     t.className = 'proactive-tag';
@@ -267,8 +306,9 @@ function renderHistory() {
   for (const m of S.history) {
     if (m.role === 'user') {
       stamp(m.at);
+      if (m.channel) channelTag(m.channel, true);
       bubble('user', m.content);
-    } else herLines(m.content, m.at, m.proactive);
+    } else herLines(m.content, m.at, m.proactive, m.channel);
   }
   scrollChat();
 }
@@ -307,12 +347,14 @@ $('#chatOpen').addEventListener('click', () => {
 $('#goLinks').addEventListener('click', () => go('settings/general'));
 
 fish.onReplyStart((id) => {
+  pet?.onEvent({ type: 'reply-start', id });
   const el = bubble('assistant', '…', 'typing');
   S.streaming = { id, el, text: '' };
   $('#sendBtn').disabled = true;
   scrollChat();
 });
 fish.onReplyDelta((id, d) => {
+  pet?.onEvent({ type: 'reply-delta', id });
   if (!S.streaming || S.streaming.id !== id) return;
   S.streaming.text += d;
   S.streaming.el.classList.remove('typing');
@@ -320,6 +362,7 @@ fish.onReplyDelta((id, d) => {
   scrollChat();
 });
 fish.onReplyEnd((id, msg, err) => {
+  pet?.onEvent({ type: 'reply-end', id, error: err || null });
   const st = S.streaming;
   S.streaming = null;
   $('#sendBtn').disabled = false;
@@ -332,8 +375,19 @@ fish.onReplyEnd((id, msg, err) => {
   scrollChat();
 });
 fish.onProactive((msg) => {
+  pet?.onEvent({ type: 'proactive' });
   S.history.push(msg);
   herLines(msg.content, msg.at, true);
+  scrollChat();
+});
+// 经内核（以后是 QQ、微信）说的话：两边各一条，带小标
+fish.onChannelMessage((m) => {
+  S.history.push({ role: 'user', content: m.text, at: m.at, channel: m.channel }, { role: 'assistant', content: m.reply, at: m.at, id: m.id, channel: m.channel });
+  stamp(m.at);
+  channelTag(m.channel, true);
+  bubble('user', m.text);
+  herLines(m.reply, m.at, false, m.channel);
+  pet?.onEvent({ type: 'reply-end', id: m.id, error: null });
   scrollChat();
 });
 fish.onNotice((text) => toast(text));
@@ -363,6 +417,11 @@ function applyVitals(v, events = []) {
   $('#railStatus').textContent = v.immune?.fever ? '发烧中' : v.state.asleep ? '睡觉' : '在线';
   brain?.setActivity(v.body.regions);
   whale?.setState({ asleep: v.state.asleep });
+  // 角色不在屏幕上时也要更新状态，切回概览时她才是对的
+  if (pet) {
+    pet.onEvent({ type: 'vitals', events });
+    if (v.balance && !v.balance.error) pet.onEvent({ type: 'balance', yuan: v.balance.total });
+  }
   if (events.some((e) => e.type === 'reply')) brain?.firePath(['prefrontal', 'motor']);
   refreshPage();
 }
@@ -431,7 +490,10 @@ function refreshSetup() {
 // ---------- 启动 ----------
 (async () => {
   const data = await fish.init();
-  Object.assign(S, { name: data.name, settings: data.settings, history: data.history, memory: data.memory, us: data.us, profile: data.profile, diary: data.diary, meta: data.meta });
+  petSkin = await fish.petSkin().catch(() => null);
+  S.petSkin = petSkin;
+  S.petConfig = data.petConfig || {};
+  Object.assign(S, { name: data.name, versions: data.versions, settings: data.settings, history: data.history, memory: data.memory, us: data.us, profile: data.profile, diary: data.diary, meta: data.meta });
   setName(data.name);
   refreshSetup();
   renderHistory();
@@ -443,4 +505,8 @@ function refreshSetup() {
 // 调试、截图和 e2e 用
 window.__go = go;
 window.__routes = routes;
+window.__petNow = () => (pet && !petBroken ? pet.now() : null);
+window.__petPlay = (name) => pet?.playClip(name);
+window.__petCoverage = () => (pet ? pet.coverage() : null);
+window.__petEvent = (e) => pet?.onEvent(e);
 export { fmtClock };

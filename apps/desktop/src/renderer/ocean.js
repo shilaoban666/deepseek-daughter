@@ -133,6 +133,7 @@ function layout(nodes, edges) {
     }
     for (let i = 0; i < n * 3; i++) f[i] -= p[i] * 0.12;
     for (let i = 0; i < n * 3; i++) p[i] += Math.max(-1, Math.min(1, f[i] * heat * 2));
+    p[0] = p[1] = p[2] = 0; // “自我”永远在正中间
   }
   // 压扁成一片浮在海面上的云，并缩放到舞台大小
   let radius = 1e-3;
@@ -199,6 +200,13 @@ export function createOcean({ stage, dpr, shared }) {
   }
 
   let nodes = [], nodeObj = null, edgeObj = null, signature = '', labels = [], labelsOn = true;
+  // 一条记忆都没有时不画节点，只显示一句提示（以前只剩“自我”一个点，会被缩放到角落变成一团白光）
+  const emptyHint = document.createElement('div');
+  emptyHint.className = 'ocean-empty';
+  emptyHint.textContent = '还没有记忆，和她聊几句就会长出来';
+  emptyHint.hidden = true;
+  stage.appendChild(emptyHint);
+  let isEmpty = true;
   const color = new THREE.Color();
 
   function clearLabels() {
@@ -221,7 +229,9 @@ export function createOcean({ stage, dpr, shared }) {
     const sig = JSON.stringify(items.map((i) => [i.id, i.kind, i.entities, i.links]));
     if (sig === signature) return;
     signature = sig;
-    const graph = buildGraph(items);
+    isEmpty = !items.length;
+    emptyHint.hidden = !(isEmpty && group.visible);
+    const graph = isEmpty ? { nodes: [], edges: [] } : buildGraph(items);
     layout(graph.nodes, graph.edges);
     nodes = graph.nodes;
     if (nodeObj) { nodeObj.geometry.dispose(); group.remove(nodeObj); }
@@ -274,6 +284,7 @@ export function createOcean({ stage, dpr, shared }) {
     setData,
     setVisible(v) {
       group.visible = v;
+      emptyHint.hidden = !(isEmpty && v);
       if (v) buildLabels(); else clearLabels();
     },
     setLabels(on) {

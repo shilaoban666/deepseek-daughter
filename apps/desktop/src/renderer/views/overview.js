@@ -24,13 +24,13 @@ function now(el, ctx) {
   const r = m.report;
   const thought = (b.thoughts || []).slice(-1)[0];
   el.innerHTML = `
-    <div class="p hero">
+    <div class="p hero${ctx.gl.hasPet() ? ' hero-pet' : ''}">
       <div class="holo" data-whale></div>
       <div>
         <div class="verdict">${esc(r.verdict)}</div>
         <div class="dim">${s.asleep ? '在被窝里睡觉' : esc(s.activity)} · 心情${esc(m.pad.label)} · ${esc(m.thinking)}</div>
         ${r.needs.length ? `<div class="need">⚠ ${esc(r.needs.map((x) => x.text).join('，'))}</div>` : ''}
-        <div class="whale-acts"><button data-whale-act="spin">转圈</button><button data-whale-act="jump">跳一下</button><button data-whale-act="spout">喷水</button><button data-whale-act="wag">摇尾巴</button></div>
+        <div class="whale-acts"><button data-pet-act="poke">摸摸她</button><button data-pet-act="dance">跳支舞</button><button data-pet-act="wallet">看钱包</button><button data-pet-act="next">换一个</button></div>
       </div>
     </div>
     <div class="g4">
@@ -48,8 +48,8 @@ function now(el, ctx) {
       ${card('待你确认', conflictsHtml(S))}
       ${card('生命趋势', trendsHtml(v))}
     </div>`;
-  ctx.gl.attachWhale(el.querySelector('[data-whale]'));
-  el.querySelectorAll('[data-whale-act]').forEach((x) => x.addEventListener('click', () => ctx.gl.whaleAct(x.dataset.whaleAct)));
+  ctx.gl.attachPet(el.querySelector('[data-whale]'));
+  el.querySelectorAll('[data-pet-act]').forEach((x) => x.addEventListener('click', () => ctx.gl.petAct(x.dataset.petAct)));
   el.querySelectorAll('[data-keep]').forEach((x) => x.addEventListener('click', () => { ctx.fish.resolveConflict(x.dataset.vs, x.dataset.keep); ctx.toast('已经按你选的留下来'); }));
   bindTrends(el, v);
 }
