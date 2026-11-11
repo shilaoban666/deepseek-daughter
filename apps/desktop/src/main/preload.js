@@ -11,6 +11,19 @@ const on = (channel) => (fn) => {
 contextBridge.exposeInMainWorld('fish', {
   init: () => ipcRenderer.invoke('init'),
   cortex: () => ipcRenderer.invoke('cortex'),
+  petSkin: () => ipcRenderer.invoke('pet-skin'),
+  // 平台插件：清单、保存设置、令牌（生成 / 复制到剪贴板，拿不到明文）
+  channelsList: () => ipcRenderer.invoke('channels-list'),
+  channelsSave: (id, values) => ipcRenderer.invoke('channels-save', id, values),
+  channelsSecret: (id, action) => ipcRenderer.invoke('channels-secret', id, action),
+  // 内嵌的 DSH 内核：状态、启动、停止、重启、通过内核说一句话
+  dshStatus: () => ipcRenderer.invoke('dsh-status'),
+  dshStart: () => ipcRenderer.invoke('dsh-start'),
+  dshStop: () => ipcRenderer.invoke('dsh-stop'),
+  dshRestart: () => ipcRenderer.invoke('dsh-restart'),
+  dshSay: (text) => ipcRenderer.invoke('dsh-say', text),
+  onDsh: on('dsh'),
+  onChannelMessage: on('channel-message'),
   send: (text) => ipcRenderer.invoke('send', text),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   // 记忆：忘掉（归档）、恢复、彻底删除、改内容、处理矛盾

@@ -4,6 +4,13 @@ const http = require('http');
 const { app, BrowserWindow } = require('electron');
 
 const scenario = process.env.E2E_SCENARIO;
+
+// 测试窗口经常被别的窗口挡住。Windows 会对完全被遮挡的窗口停掉逐帧渲染，
+// 测性能的 requestAnimationFrame 就永远等不到，截屏也会报“display surface not available”。
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 const requests = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let passed = 0, failed = 0;
@@ -20,7 +27,9 @@ const CONSOLIDATION = JSON.stringify({
 });
 const EXTRACTION = JSON.stringify({ new: [{ text: '小明养了一只橘猫叫大橘', importance: 4, entities: ['大橘'] }], corrections: [] });
 
+let lastAuth = '';
 const server = http.createServer((req, res) => {
+  if (req.headers.authorization) lastAuth = req.headers.authorization;
   if (req.url.includes('balance')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ is_available: true, balance_infos: [{ currency: 'CNY', total_balance: '42.00', granted_balance: '0', topped_up_balance: '42.00' }] }));
@@ -68,7 +77,7 @@ async function sweep(label) {
     if (!info.len || info.bad || info.over || info.bar > 46) bad.push(`${r}:${JSON.stringify(info)}`);
     await sleep(40);
   }
-  check(`${label}：${routes.length} 个页面都正常`, routes.length === 24 && !bad.length, bad.slice(0, 3).join(' | '));
+  check(`${label}：${routes.length} 个页面都正常`, routes.length === 25 && !bad.length, bad.slice(0, 3).join(' | '));
   times.sort((a, b) => a - b);
   const p95 = times[Math.floor(times.length * 0.95)];
   check(`${label}：切换页面足够快（p95 < 120ms）`, p95 < 120, `${p95.toFixed(1)}ms`);
@@ -94,6 +103,88 @@ async function pixelSpread(selector) {
     if (v > max) max = v;
   }
   return max - min;
+}
+
+/** 一块区域里接近白色的像素占多少（空的意识海不该有大光团） */
+async function brightRatio(selector) {
+  const r = await js(`(()=>{const b=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:Math.round(b.x),y:Math.round(b.y),width:Math.round(b.width),height:Math.round(b.height)}})()`);
+  const data = (await win.webContents.capturePage(r)).toBitmap();
+  let bright = 0, total = 0;
+  for (let i = 0; i < data.length; i += 4 * 7) {
+    total += 1;
+    if (data[i] > 220 && data[i + 1] > 220 && data[i + 2] > 220) bright += 1;
+  }
+  return bright / total;
+}
+
+/** 鲸鱼娘：视频在播、背景透明、没有缺的动画；发一句话会先思考再说话再庆祝；离开页面后暂停 */
+async function petChecks() {
+  await sleep(1200);
+  check('角色：用的是鲸鱼娘', await js('!!window.__petNow()'));
+  const t0 = await js("document.querySelector('.pet-video.front')?.currentTime ?? -1");
+  await sleep(1200);
+  const t1 = await js("document.querySelector('.pet-video.front')?.currentTime ?? -1");
+  check('角色：视频在播', t1 > t0 && t0 >= 0, `${t0} → ${t1}`);
+  const alpha = await js(`(()=>{const v=document.querySelector('.pet-video.front');const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(v,0,0);return [g.getImageData(3,3,1,1).data[3], g.getImageData(c.width-4,3,1,1).data[3]]})()`);
+  check('角色：背景是透明的', alpha.every((a) => a <= 1), alpha.join(','));
+  check('角色：没有缺失的动画文件', (await js('window.__petCoverage().length')) === 0);
+  // 每一段动画都要真的能解码（走程序实际用的 pet:// 协议），不只是文件在
+  const decode = await js(`(async()=>{
+    const info = await window.fish.petSkin();
+    const clips = info.manifest.menu.flatMap((g) => g.clips);
+    const bad = [];
+    const one = (c) => new Promise((resolve) => {
+      const v = document.createElement('video');
+      v.muted = true; v.preload = 'auto';
+      const done = (ok, why) => { v.removeAttribute('src'); v.load(); if (!ok) bad.push(c + '：' + why); resolve(); };
+      v.onloadeddata = () => done(v.videoWidth === 640 && v.duration > 0, v.videoWidth + 'x' + v.videoHeight);
+      v.onerror = () => done(false, 'error ' + (v.error && v.error.code));
+      setTimeout(() => done(false, '超时'), 8000);
+      v.src = info.baseUrl + '/' + encodeURIComponent(c) + '.webm';
+    });
+    for (let i = 0; i < clips.length; i += 8) await Promise.all(clips.slice(i, i + 8).map(one));
+    return { total: clips.length, bad };
+  })()`);
+  check(`角色：右键菜单里的 ${decode.total} 段动画都能解码`, decode.total === 114 && decode.bad.length === 0, decode.bad.slice(0, 3).join(' | '));
+  // 真的点右键菜单：每组点第一段，正在播的就是它
+  const menuPlay = await js(`(async()=>{
+    const stage = document.querySelector('.pet-stage') || document.querySelector('.pet-video').parentElement;
+    const groups = (await window.fish.petSkin()).manifest.menu;
+    const wrong = [];
+    for (let g = 0; g < groups.length; g++) {
+      const r = stage.getBoundingClientRect();
+      stage.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+      await new Promise((x) => setTimeout(x, 50));
+      const menu = document.querySelector('.pet-menu');
+      if (!menu) { wrong.push('菜单没打开'); break; }
+      menu.querySelector('[data-g="' + g + '"]').click();
+      const want = groups[g].clips[0];
+      menu.querySelector('[data-clip="' + CSS.escape(want) + '"]').click();
+      await new Promise((x) => setTimeout(x, 150));
+      const now = window.__petNow();
+      if (!now || now.clip !== want) wrong.push(want + '→' + (now && now.clip));
+    }
+    return { groups: groups.length, wrong };
+  })()`);
+  check(`角色：右键菜单 ${menuPlay.groups} 组都能点播`, menuPlay.wrong.length === 0, menuPlay.wrong.slice(0, 3).join(' | '));
+  // 页面刷新（心跳、来消息都会触发）不能打断正在播的动画
+  const before = await js("({clip: window.__petNow().clip, t: document.querySelector('.pet-video.front').currentTime})");
+  await js("window.__go('overview/now')");
+  await sleep(300);
+  const after = await js("({clip: window.__petNow().clip, t: document.querySelector('.pet-video.front').currentTime})");
+  check('角色：页面刷新不会打断正在播的动画', after.clip === before.clip && after.t > before.t, `${before.clip}@${before.t.toFixed(2)} → ${after.clip}@${after.t.toFixed(2)}`);
+  // 发一句话，记下她的动作变化
+  await js("window.__petTrace=[];window.__petTimer=setInterval(()=>{const n=window.__petNow();const k=n.action+'|'+(n.reaction||'');if(window.__petTrace[window.__petTrace.length-1]!==k)window.__petTrace.push(k)},20)");
+  await send('你在干嘛呀');
+  await sleep(600);
+  const trace = await js('(clearInterval(window.__petTimer), window.__petTrace)');
+  const seen = (x) => trace.some((k) => k.startsWith(x) || k.endsWith(`|${x}`));
+  check('角色：发一句话，先思考或说话，最后庆祝', (seen('think') || seen('talk')) && seen('done'), trace.join(' → ').slice(0, 160));
+  await js("window.__go('settings/general')");
+  await sleep(500);
+  check('角色：离开此刻页后视频暂停', await js("[...document.querySelectorAll('.pet-video')].every((v) => v.paused)"));
+  await js("window.__go('overview/now')");
+  await sleep(800);
 }
 
 async function mainScenario() {
@@ -146,15 +237,19 @@ async function mainScenario() {
   check('意识海画出来了', (await pixelSpread('#stage3d')) > 40);
   await js("window.__go('overview/now')");
   await sleep(800);
-  check('3D 鲸鱼画出来了', (await pixelSpread('#whaleCanvas')) > 40);
+  await petChecks();
 
   // 性能：反复切换后不能叠加渲染循环，内存不能一直涨
+  // 被盖住的窗口 Chromium 只按每秒 1 帧画，测出来的帧间隔没有意义：测之前把测试窗口提到最上面
+  win.moveTop();
+  await sleep(300);
   await js(`(()=>{window.__rafReg=0;const o=window.requestAnimationFrame.bind(window);window.__origRaf=o;window.requestAnimationFrame=(f)=>{window.__rafReg++;return o(f)}})()`);
   const heapStart = await js('performance.memory.usedJSHeapSize');
   await js(`(async()=>{for(let i=0;i<60;i++){window.__go(i%2?'neuro/brain':'settings/general');await new Promise(r=>setTimeout(r,20))}window.__go('neuro/brain')})()`);
   await sleep(1500);
-  const perf = await js(`new Promise((resolve)=>{const o=window.__origRaf;window.__rafReg=0;let frames=0,last=performance.now(),sum=0,max=0;const t0=last;const tick=(now)=>{frames++;sum+=now-last;max=Math.max(max,now-last);last=now;if(now-t0<3000)o(tick);else resolve({perFrame:window.__rafReg/frames,avg:sum/frames,max,vis:document.visibilityState})};o(tick)})`);
+  const perf = await js(`new Promise((resolve)=>{const o=window.__origRaf;window.__rafReg=0;let frames=0,last=performance.now(),sum=0,max=0;const t0=last;const tick=(now)=>{frames++;sum+=now-last;max=Math.max(max,now-last);last=now;if(now-t0<3000)o(tick);else resolve({perFrame:window.__rafReg/frames,avg:sum/frames,max,vis:document.visibilityState})};o(tick);setTimeout(()=>resolve({perFrame:frames?window.__rafReg/frames:0,avg:frames?sum/frames:0,max,frames,vis:'stalled',state:document.visibilityState,focus:document.hasFocus()}),6000)})`);
   check('反复切换后没有叠加渲染循环', perf.perFrame <= 2.6, `${perf.perFrame.toFixed(2)} 次/帧`);
+  check('3D 页面有在渲染', perf.vis !== 'stalled', perf.vis === 'stalled' ? `6 秒内只有 ${perf.frames} 帧（${perf.state}，焦点 ${perf.focus}）` : '');
   check('3D 页面主线程不卡（平均帧间隔 < 60ms）', perf.vis !== 'visible' || perf.avg < 60, `${perf.avg.toFixed(1)}ms，最长 ${perf.max.toFixed(0)}ms`);
   await js("window.__go('settings/general')");
   await sleep(300);
@@ -167,8 +262,50 @@ async function mainScenario() {
   await sleep(400);
   await sweep('最小窗口 1024×640');
   win.setContentSize(1440, 900);
+  await pluginsChecks();
   await js("window.__go('settings/general')");
   check('设置页有 API Key 输入框', await js("!!document.querySelector('#lk-key')"));
+  const about = await js("document.querySelector('#about')?.innerText || ''");
+  check('设置页署名了鲸鱼娘、皮层数据和 DSH', about.includes('PC2005-cloud') && about.includes('禁止商用') && about.includes('Anderson Winkler') && about.includes('DeepSeek Harness 0.0.1-rc.5'), about.replace(/\s+/g, ' ').slice(80, 200));
+  check('设置页显示组件版本', about.includes(`大肥鱼 ${require('../package.json').version}`) && about.includes(`Electron ${process.versions.electron}`) && about.includes(`Node ${process.versions.node}`), about.replace(/\s+/g, ' ').slice(0, 80));
+}
+
+const settingsFile = () => {
+  try { return require('fs').readFileSync(require('path').join(app.getPath('userData'), 'data', 'settings.json'), 'utf8'); } catch { return '{}'; }
+};
+
+/** 插件页（这一期只有界面）：8 个平台、抽屉、校验、保存、令牌不外露、连接按钮是灰的 */
+async function pluginsChecks() {
+  await js("window.__go('explore/platforms')");
+  check('插件页：8 个平台都在', await waitFor("document.querySelectorAll('.plat-card').length===8", 5000));
+  const cards = await js("[...document.querySelectorAll('.plat-st')].map(e=>e.textContent)");
+  check('插件页：没有任何平台显示已连接', !cards.some((t) => t.includes('已连接')), cards.join(' | '));
+  await js("document.querySelector('[data-open=qq]').click()");
+  check('插件页：点 QQ 打开抽屉，焦点在第一个输入框', await js("!!document.querySelector('.drawer') && document.activeElement.dataset.field==='ownerQQ'"));
+  check('插件页：连接按钮是灰的', await js("document.querySelector('[data-connect]').disabled"));
+  const set = (k, v) => js(`(()=>{const i=document.querySelector('[data-field="${k}"]');i.value=${JSON.stringify(v)};i.dispatchEvent(new Event('input'))})()`);
+  await set('port', '9100');
+  check('插件页：改端口，接入步骤里的地址跟着变', await js("document.querySelector('.guide').innerText.includes('ws://127.0.0.1:9100')"));
+  await set('ownerQQ', '1234');
+  await js("document.querySelector('[data-save]').click()");
+  check('插件页：QQ 号填错，用人话提示', await waitFor("(document.querySelector('#ch-qq-ownerQQ-err')||{}).textContent==='QQ 号是 5 到 12 位数字'", 3000));
+  check('插件页：填错时没有存进去', !settingsFile().includes('"channels"'));
+  await set('ownerQQ', '12345678');
+  await set('groups', '10001，20002');
+  await js("document.querySelector('[data-save]').click()");
+  check('插件页：保存后状态变成“已保存设置”', await waitFor("document.querySelector('.drawer .plat-st').textContent.includes('已保存设置')", 3000));
+  await js("document.querySelector('[data-secret=generate]').click()");
+  check('插件页：能生成连接令牌', await waitFor("document.querySelector('.secret-row').innerText.includes('已生成')", 3000));
+  check('插件页：生成令牌后，整页文字里找不到令牌内容', !/[A-Za-z0-9_-]{32}/.test(await js('document.body.innerText')));
+  check('插件页：正式界面没有预览角标', await js("!document.querySelector('.preview-badge')"));
+  const raw = JSON.parse(settingsFile());
+  check('插件页：设置存进了存档', raw.channels?.qq?.ownerQQ === '12345678' && raw.channels.qq.port === 9100 && raw.channels.qq.groups.join() === '10001,20002', JSON.stringify(raw.channels || {}));
+  const listed = JSON.stringify(await js("window.fish.channelsList()"));
+  const stored = raw.secrets?.['channel:qq:token'] || {};
+  check('插件页：令牌加密存盘，界面拿不到内容', !!(stored.enc || stored.plain) && !listed.includes(stored.plain || '@@none@@') && !/"token"\s*:\s*"/.test(listed));
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))");
+  check('插件页：Esc 关掉抽屉', await js("!document.querySelector('.drawer')"));
+  check('插件页：卡片上显示已保存', await js("document.querySelector('[data-open=qq] .plat-st').textContent.includes('已保存设置')"));
 }
 
 async function restartScenario() {
@@ -177,10 +314,14 @@ async function restartScenario() {
   check('重启后纪念日还在', (await pageText()).includes('小明的生日'));
   await js("window.__go('us/slang')");
   check('重启后黑话还在', (await pageText()).includes('布丁税'));
+  const qq = (await js('window.fish.channelsList()')).find((p) => p.id === 'qq');
+  check('重启后 QQ 设置和令牌还在', qq.status === 'saved' && qq.values.ownerQQ === '12345678' && qq.secretSet === true);
 }
 
 async function feverScenario() {
   await js("window.__go('overview/now')");
+  await sleep(800);
+  check('角色：发烧时是生病的样子', (await js('window.__petNow()?.action')) === 'sick', await js('JSON.stringify(window.__petNow())'));
   check('概览显示发烧', (await pageText()).includes('发烧'));
   await send('你怎么样');
   const b = requests.filter((x) => x.stream).pop();
@@ -193,31 +334,117 @@ async function feverScenario() {
   check('心率页有内容', (await pageText()).includes('心率'));
 }
 
+/** 素材目录不存在（比如商用时删掉了）：自动换回 3D 鲸鱼，程序照常运行 */
+async function noskinScenario() {
+  await js("window.__go('overview/now')");
+  await sleep(1200);
+  check('没有素材时：不用鲸鱼娘', (await js('window.__petNow()')) === null);
+  check('没有素材时：3D 鲸鱼画出来了', (await pixelSpread('#whaleCanvas')) > 40);
+  check('没有素材时：动作按钮还能点', await js("(()=>{document.querySelector('[data-pet-act=\"dance\"]').click();return true})()"));
+}
+
 async function hungryScenario() {
   await js("window.__go('overview/now')");
   check('概览显示饿了', /饿/.test(await pageText()));
+  await sleep(600);
+  // 饿了她会先去找零食吃，所以可能已经在吃了
+  check('角色：饿的时候在找吃的或者在吃', ['hungry', 'eat'].includes(await js('window.__petNow()?.action')), await js('JSON.stringify(window.__petNow())'));
+  check('角色：认识第一天不吃长寿面', (await js('window.__petNow()?.clip')) !== '吃长寿面');
   await send('在干嘛');
   const b = requests.filter((x) => x.stream).pop();
   check('饿的时候可怜巴巴', b.messages[0].content.includes('可怜巴巴'));
   check('饿的时候回复变短', b.max_tokens === 220, b.max_tokens);
 }
 
-const RUN = { main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario };
+/** 用旧版本 Electron 存下的加密 Key 启动新版本：Key 要能解开，并且真的用它去请求 */
+async function upgradeScenario() {
+  const init = await js('window.fish.init()');
+  check('升级：旧存档的 Key 还在', init.settings.hasKey === true);
+  check('升级：旧存档的名字还在', init.settings.daughterName === '升级测试');
+  await send('还认得我吗');
+  check('升级：请求带的是旧存档里的那把 Key', lastAuth === 'Bearer sk-upgrade-test-000000', lastAuth.slice(0, 16));
+  const raw = JSON.parse(settingsFile());
+  const enc = raw.secrets?.deepseek?.enc;
+  check('升级：旧的 Key 字段迁移到新的加密存储', !raw.apiKeyEnc && !raw.apiKeyPlain && (enc ? !settingsFile().includes('sk-upgrade-test') : !!raw.secrets?.deepseek?.plain), Object.keys(raw).join(','));
+}
+
+/** 内核：DSH 真的跑起来，通过它说的话走完 DSH → 生命网关 → 她的大脑 → 假 DeepSeek */
+async function kernelScenario() {
+  const fs = require('fs');
+  const path = require('path');
+  const pidFile = path.join(app.getPath('userData'), 'dsh-pids.txt');
+  const notePid = (pid) => pid && fs.appendFileSync(pidFile, `${pid}
+`);
+  await js("window.__go('explore/kernel')");
+  check('内核：默认不随程序启动', (await js('window.fish.dshStatus()')).state === 'stopped');
+  await waitFor("!!document.querySelector('[data-k-act=start]')", 5000);
+  await js("document.querySelector('[data-k-act=start]').click()");
+  check('内核：启动成功', await waitFor("window.fish.dshStatus().then(s=>s.state==='running')", 20000));
+  const st = await js('window.fish.dshStatus()');
+  notePid(st.pid);
+  check('内核：页面显示运行中和 3 个插件', await waitFor("document.querySelector('#kStatus').innerText.includes('运行中') && document.querySelectorAll('.k-plugins li').length===3", 5000));
+  const up0 = await js("document.querySelector('#kUp')?.textContent");
+  // 每秒走一次、相位随机：等 2.3 秒才保证中间有一次是在启动 1 秒以后走的
+  await sleep(2300);
+  const up1 = await js("document.querySelector('#kUp')?.textContent");
+  check('内核：“已运行”在走', up0 && up1 && up0 !== up1, `${up0} → ${up1}`);
+  check('内核：没有加载能动电脑的插件', !st.plugins.some((p) => /bash|pwsh|terminal|fs-local|web|subagent|mcp|tool-skill|tool-jobs|editor/.test(p.name)), st.plugins.map((p) => p.name).join(','));
+
+  const before = requests.length;
+  await js(`(()=>{const i=document.querySelector('#kInput');i.value='通过内核问一句：你记得大橘吗';document.querySelector('#kForm').requestSubmit()})()`);
+  check('内核：通过内核说一句话，收到她的回复', await waitFor("(window.__kernelSaid().at(-1)||{}).reply==='我记得呀，大橘嘛'", 20000), JSON.stringify(await js('window.__kernelSaid().at(-1)')));
+  check('内核：这句话出现在聊天栏，带“经内核”标记', await waitFor("document.querySelector('#msgs').innerText.includes('通过内核问一句') && [...document.querySelectorAll('#msgs .channel-tag')].some(t=>t.textContent==='经内核')", 5000));
+  const chat = requests.slice(before).filter((b) => b.stream);
+  const sys = chat.at(-1)?.messages?.[0]?.content || '';
+  check('内核：假 DeepSeek 收到的提示词里有她的人设和身体状态', sys.includes('【你的身体】') && sys.includes('【你现在说话的样子】') && !sys.includes('dafeiyu-gateway'), sys.slice(0, 60));
+  check('内核：假 DeepSeek 只收到一次聊天请求（DSH 的请求到网关为止）', chat.length === 1, String(chat.length));
+  await js("window.__go('mind/memory')");
+  check('内核：这句话进了记忆页', await waitFor("document.querySelector('#page').innerText.includes('通过内核问一句')", 5000));
+
+  // 杀掉内核进程：10 秒内自动恢复，再说一句仍有回复
+  process.kill(st.pid);
+  const t0 = Date.now();
+  const back = await waitFor(`window.fish.dshStatus().then(s=>s.state==='running' && s.pid!==${st.pid})`, 10000);
+  check('内核：杀掉内核进程后自动恢复', back, `${((Date.now() - t0) / 1000).toFixed(1)} 秒`);
+  const st2 = await js('window.fish.dshStatus()');
+  notePid(st2.pid);
+  const r2 = await js("window.fish.dshSay('恢复以后还在吗')");
+  check('内核：恢复后再说一句仍有回复', r2.ok && r2.reply === '我记得呀，大橘嘛', JSON.stringify(r2).slice(0, 120));
+  check('内核：重启次数和最近一次错误记下来了', st2.restarts >= 1 && /意外退出/.test(st2.lastError || ''), JSON.stringify({ restarts: st2.restarts, lastError: st2.lastError }));
+  await js("window.__go('explore/platforms')");
+  check('内核：插件页顶部显示内核运行中', await waitFor("(document.querySelector('.kernel-line')||{}).textContent?.includes('运行中')", 5000));
+}
+
+/** 存档里一条记忆都没有：意识海只显示提示，不能有一团白光 */
+async function emptyScenario() {
+  await js("window.__go('mind/ocean')");
+  await sleep(1500);
+  const hint = await js("(async()=>{const e=document.querySelector('.ocean-empty');const d=await window.fish.init();return {has:!!e,hidden:e?e.hidden:null,shown:!!e&&!e.hidden&&e.offsetParent!==null,records:(d.memory.records||[]).filter(r=>!r.archived).map(r=>r.layer+':'+r.text.slice(0,12))}})()");
+  check('空的意识海显示提示文字', hint.shown, hint.shown ? '' : JSON.stringify(hint));
+  const glow = await brightRatio('#stage3d');
+  check('空的意识海没有大块亮光', glow < 0.01, `${(glow * 100).toFixed(2)}%`);
+  check('聊天栏的提示指向设置页', await js("document.querySelector('#goLinks').textContent.includes('设置')"));
+}
+
+const RUN = { kernel: kernelScenario, main: mainScenario, restart: restartScenario, fever: feverScenario, hungry: hungryScenario, upgrade: upgradeScenario, empty: emptyScenario, noskin: noskinScenario };
 
 server.listen(0, '127.0.0.1', () => {
-  process.env.DEEPSEEK_API_KEY = 'sk-e2e-mock-key-000000';
+  if (scenario !== 'upgrade') process.env.DEEPSEEK_API_KEY = 'sk-e2e-mock-key-000000';
   process.env.DFY_API_BASE = `http://127.0.0.1:${server.address().port}`;
   require('../src/main/main.js');
   app.whenReady().then(async () => {
     await sleep(300);
     win = BrowserWindow.getAllWindows()[0];
     js = (code) => win.webContents.executeJavaScript(code, true);
-    win.webContents.on('console-message', (_e, level, msg) => { if (level >= 3) consoleErrors.push(msg); });
+    // 窗口被别的窗口盖住时页面会变成 hidden，动画和视频都停下，测渲染的检查就会误报；测试窗口一直按“看得见”处理
+    win.webContents.setBackgroundThrottling(false);
+    win.webContents.on('console-message', (e) => { if (e.level === 'error') consoleErrors.push(e.message); });
     win.webContents.on('render-process-gone', (_e, d) => consoleErrors.push(`渲染进程崩溃：${d.reason}`));
     let code = 1;
     try {
       if (win.webContents.isLoadingMainFrame()) await new Promise((r) => win.webContents.once('did-finish-load', r));
       check('应用启动完成', await waitFor('window.__fishReady === true'));
+      console.log(`  · 冷启动到界面就绪 ${(process.uptime() * 1000).toFixed(0)}ms（Electron ${process.versions.electron}）`);
       await RUN[scenario]();
       check('没有控制台错误', consoleErrors.length === 0, consoleErrors.slice(0, 2).join(' | ').slice(0, 300));
       code = failed ? 1 : 0;
@@ -226,6 +453,12 @@ server.listen(0, '127.0.0.1', () => {
     }
     console.log(`E2E ${scenario}：通过 ${passed}，失败 ${failed}`);
     server.close();
-    app.exit(code);
+    // 走正常的退出流程（before-quit 里会先关内核），这样“退出后没有残留进程”测的是真实路径
+    app.on('will-quit', (e) => {
+      e.preventDefault();
+      app.exit(code);
+    });
+    setTimeout(() => app.exit(code), 8000).unref();
+    app.quit();
   });
 });

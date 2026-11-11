@@ -1,0 +1,23 @@
+name: ✨ 想要一个功能
+description: 新的平台、新的能力、界面上的改进
+title: "[功能] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: why
+    attributes:
+      label: 你想解决什么问题
+      description: 先说场景，再说方案。
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: 你设想的做法（可选）
+  - type: checkboxes
+    id: help
+    attributes:
+      label: 你愿意参与吗
+      options:
+        - label: 我可以自己提 PR
+        - label: 我可以帮忙测试

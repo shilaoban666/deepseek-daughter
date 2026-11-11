@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-label="大肥鱼 · DeepSeek Daughter：养一个住在网上的女孩">
+  <defs>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1b3a"/>
+      <stop offset="0.55" stop-color="#071226"/>
+      <stop offset="1" stop-color="#03070f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4fd6ff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#3a7bff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#3a7bff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="warm" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd58a" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ffd58a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#eaf8ff"/>
+      <stop offset="0.5" stop-color="#7fdcff"/>
+      <stop offset="1" stop-color="#b9a6ff"/>
+    </linearGradient>
+    <linearGradient id="ray" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7fdcff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#7fdcff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter>
+    <clipPath id="frame"><rect width="1280" height="420" rx="18"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <rect width="1280" height="420" fill="url(#sea)"/>
+
+    <!-- 从海面照下来的光 -->
+    <g>
+      <polygon points="180,0 300,0 430,420 250,420" fill="url(#ray)"><animate attributeName="opacity" values="0.5;1;0.5" dur="7s" repeatCount="indefinite"/></polygon>
+      <polygon points="560,0 640,0 720,420 600,420" fill="url(#ray)"><animate attributeName="opacity" values="1;0.4;1" dur="9s" repeatCount="indefinite"/></polygon>
+      <polygon points="900,0 1040,0 1120,420 940,420" fill="url(#ray)"><animate attributeName="opacity" values="0.6;1;0.6" dur="8s" repeatCount="indefinite"/></polygon>
+    </g>
+
+    <!-- 意识海：记忆的光点和连线 -->
+    <g stroke="#7fdcff" stroke-opacity="0.28" stroke-width="1">
+      <line x1="930" y1="120" x2="1010" y2="170"/><line x1="1010" y1="170" x2="1100" y2="130"/><line x1="1010" y1="170" x2="1040" y2="250"/>
+      <line x1="1040" y1="250" x2="1140" y2="270"/><line x1="1040" y1="250" x2="960" y2="300"/><line x1="1100" y1="130" x2="1180" y2="180"/>
+      <line x1="150" y1="290" x2="230" y2="250"/><line x1="230" y1="250" x2="300" y2="300"/><line x1="230" y1="250" x2="210" y2="170"/>
+    </g>
+    <g>
+      <circle cx="1010" cy="170" r="46" fill="url(#glow)"><animate attributeName="r" values="40;54;40" dur="5s" repeatCount="indefinite"/></circle>
+      <circle cx="1040" cy="250" r="34" fill="url(#warm)"><animate attributeName="r" values="28;40;28" dur="6s" repeatCount="indefinite"/></circle>
+      <circle cx="230" cy="250" r="38" fill="url(#glow)"><animate attributeName="r" values="32;46;32" dur="7s" repeatCount="indefinite"/></circle>
+      <g fill="#eaf8ff">
+        <circle cx="1010" cy="170" r="4.5"/><circle cx="930" cy="120" r="2.6"/><circle cx="1100" cy="130" r="3"/><circle cx="1180" cy="180" r="2.2"/>
+        <circle cx="1140" cy="270" r="2.4"/><circle cx="960" cy="300" r="2.6"/><circle cx="230" cy="250" r="4"/><circle cx="150" cy="290" r="2.4"/>
+        <circle cx="300" cy="300" r="2.6"/><circle cx="210" cy="170" r="2.2"/>
+      </g>
+      <circle cx="1040" cy="250" r="4" fill="#ffe2a8"/>
+    </g>
+
+    <!-- 往上飘的气泡 -->
+    <g fill="none" stroke="#9be6ff" stroke-opacity="0.55" stroke-width="1.4">
+      <circle cx="120" cy="440" r="7"><animate attributeName="cy" values="440;-20" dur="11s" repeatCount="indefinite"/><animate attributeName="cx" values="120;134;116;128" dur="11s" repeatCount="indefinite"/></circle>
+      <circle cx="380" cy="440" r="4"><animate attributeName="cy" values="440;-20" dur="8s" begin="2s" repeatCount="indefinite"/></circle>
+      <circle cx="470" cy="440" r="9"><animate attributeName="cy" values="440;-20" dur="14s" begin="4s" repeatCount="indefinite"/><animate attributeName="cx" values="470;456;478;466" dur="14s" repeatCount="indefinite"/></circle>
+      <circle cx="800" cy="440" r="5"><animate attributeName="cy" values="440;-20" dur="9s" begin="1s" repeatCount="indefinite"/></circle>
+      <circle cx="870" cy="440" r="3"><animate attributeName="cy" values="440;-20" dur="7s" begin="5s" repeatCount="indefinite"/></circle>
+      <circle cx="1210" cy="440" r="8"><animate attributeName="cy" values="440;-20" dur="12s" begin="3s" repeatCount="indefinite"/><animate attributeName="cx" values="1210;1196;1218;1204" dur="12s" repeatCount="indefinite"/></circle>
+      <circle cx="1090" cy="440" r="4"><animate attributeName="cy" values="440;-20" dur="10s" begin="6s" repeatCount="indefinite"/></circle>
+    </g>
+
+    <!-- 小鲸鱼：慢慢游、上下浮动 -->
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0,0; 14,-10; 0,0; -10,8; 0,0" dur="9s" repeatCount="indefinite"/>
+      <circle cx="640" cy="118" r="78" fill="url(#glow)"/>
+      <g transform="translate(640 118)">
+        <path d="M-58 4 C-58 -30 -28 -44 6 -44 C40 -44 62 -22 62 4 C62 22 44 36 14 36 L-22 36 C-44 36 -58 24 -58 4 Z" fill="#5ed4ff"/>
+        <path d="M-58 4 C-50 22 -34 30 -10 30 L26 30 C44 30 56 22 62 8 C60 24 44 36 14 36 L-22 36 C-44 36 -58 24 -58 4 Z" fill="#dff6ff"/>
+        <path d="M-56 2 L-86 -22 C-90 -6 -84 6 -72 10 C-84 14 -90 26 -86 40 Z" fill="#5ed4ff"/>
+        <path d="M-4 20 C6 34 22 36 30 28 C22 24 12 20 4 14 Z" fill="#35b4e6"/>
+        <circle cx="36" cy="-8" r="5" fill="#0b1b3a"/><circle cx="37.6" cy="-9.6" r="1.6" fill="#fff"/>
+        <path d="M30 10 Q38 16 46 10" fill="none" stroke="#0b1b3a" stroke-width="2.4" stroke-linecap="round"/>
+        <ellipse cx="22" cy="2" rx="6" ry="3" fill="#ff9fb8" opacity="0.7"/>
+        <g stroke="#9be6ff" stroke-width="3" stroke-linecap="round" fill="none">
+          <path d="M2 -46 C2 -62 -12 -64 -14 -54"><animate attributeName="opacity" values="1;0.3;1" dur="2.6s" repeatCount="indefinite"/></path>
+          <path d="M2 -46 C2 -62 16 -64 18 -54"><animate attributeName="opacity" values="0.3;1;0.3" dur="2.6s" repeatCount="indefinite"/></path>
+        </g>
+      </g>
+    </g>
+
+    <!-- 标题 -->
+    <text x="640" y="268" text-anchor="middle" font-family="'Microsoft YaHei UI','PingFang SC','Noto Sans SC','Segoe UI',sans-serif" font-size="78" font-weight="800" fill="url(#title)" letter-spacing="10">大肥鱼</text>
+    <text x="640" y="312" text-anchor="middle" font-family="'Segoe UI','Inter','Helvetica Neue',sans-serif" font-size="22" fill="#8fb4d9" letter-spacing="8">DEEPSEEK DAUGHTER</text>
+    <rect x="530" y="330" width="220" height="1.5" fill="#4fd6ff" opacity="0.45"/>
+    <text x="640" y="368" text-anchor="middle" font-family="'Microsoft YaHei UI','PingFang SC','Noto Sans SC',sans-serif" font-size="24" fill="#d8e9f7" letter-spacing="3">养一个住在网上的女孩 · 她会饿、会困、会想你、会长大</text>
+
+    <rect x="0.75" y="0.75" width="1278.5" height="418.5" rx="18" fill="none" stroke="#4fd6ff" stroke-opacity="0.25" stroke-width="1.5"/>
+  </g>
+</svg>

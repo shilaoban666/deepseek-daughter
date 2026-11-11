@@ -309,7 +309,7 @@ class MemoryBank {
       archived: false,
       archivedAt: 0,
       conflict: false,
-      provisional: false,
+      provisional: !!input.provisional, // 来源可疑、还没求证的事（比如陌生人说的），检索时单独标出来
       links: Array.isArray(input.links) ? input.links : [],
       meta: input.meta && typeof input.meta === 'object' ? input.meta : {},
     };

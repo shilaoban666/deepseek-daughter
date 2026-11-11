@@ -1,7 +1,7 @@
 {
   "name": "deepseek-daughter-desktop",
   "productName": "大肥鱼",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "大肥鱼：住在你电脑里的 AI 女孩，由 DeepSeek 驱动",
   "license": "Apache-2.0",
   "private": true,
@@ -14,15 +14,17 @@
     "simulate": "node eval/simulate.js 7 --strict",
     "shots": "node scripts/shots.js",
     "dist": "electron-builder --win portable",
-    "e2e": "node scripts/e2e.js"
+    "e2e": "node scripts/e2e.js",
+    "pet:sheet": "node scripts/pet-sheet.js",
+    "pet:import": "node scripts/import-dsh-pet.mjs"
   },
   "devDependencies": {
-    "electron": "^33.4.11",
-    "electron-builder": "^25.1.8",
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
     "three": "^0.170.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "build": {
     "appId": "io.github.shilaoban666.dafeiyu",
@@ -34,6 +36,7 @@
     },
     "files": [
       "src/**/*",
+      "dsh/**/*",
       "config/**/*",
       "assets/**/*",
       "package.json",
@@ -45,6 +48,80 @@
     },
     "electronDownload": {
       "mirror": "https://npmmirror.com/mirrors/electron/"
-    }
+    },
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
+    "asarUnpack": [
+      "assets/pet/**",
+      "node_modules/**"
+    ]
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/cordis-plugin-group": "1.1.0",
+    "@deepseek-ai/cordis-plugin-include": "1.1.0",
+    "@deepseek-ai/cordis-plugin-loader": "1.1.0",
+    "@deepseek-ai/cordis-plugin-timer": "1.2.0",
+    "@deepseek-ai/cosmokit": "1.9.0",
+    "@deepseek-ai/dsh-agent": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-agent-instructions": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-agent-loop": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-agent-spine-demo": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-anonymous-user-id": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-app-boot": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-attachment": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-brand": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-code-runtime": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-credentials": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-fs": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-goal": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-goal-round-driver": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-home-paths": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-invariants": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-jobs": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-jobs-local": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-launch-environment": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-llm-deepseek": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-llm-retry": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-output-retention": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-sandbox": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-sandbox-policy": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-scope": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-sdk-client": "0.0.1-rc.1",
+    "@deepseek-ai/dsh-sdk-jsonrpc-demo": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-sdk-jsonrpc-server": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-sdk-protocol": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-session": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-session-persistence": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-session-projection": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-session-title": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-settings": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-shell": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-shell-env": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-skill": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-skill-filesystem": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-subagent": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-subprocess": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-system-prompt": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-timeout": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-tool-bash": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-tool-goal": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-tool-jobs": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-tool-skill": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": "0.0.1-rc.5",
+    "@deepseek-ai/dsh-user-approval": "0.0.1-rc.5",
+    "@deepseek-ai/schemastery": "3.19.0",
+    "@standard-schema/spec": "1.1.0",
+    "argparse": "2.0.1",
+    "chokidar": "5.0.0",
+    "eventsource-parser": "3.1.1",
+    "js-yaml": "4.3.2",
+    "readdirp": "5.1.1",
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
   }
 }

@@ -22,6 +22,16 @@ const { speechState } = require('./speech');
 const deepseek = require('./deepseek');
 const config = require('./config');
 
+const SPEND_KINDS = ['chat', 'proactive', 'extract', 'consolidate', 'external'];
+
+class BudgetError extends Error {
+  constructor(kind) {
+    super(`今天的 Token 预算用完了（${kind}）`);
+    this.name = 'BudgetError';
+    this.kind = kind;
+  }
+}
+
 const EXTRACT_EVERY = 3; // 每 3 条用户消息整理一次记忆
 const VITALS_MAX = 360; // 曲线保留最近 360 个采样
 const TIRED_REPLY = '唔……今天吃得有点多了，脑子转不动啦，我想先睡一会儿。\n明天再聊好不好？';
@@ -252,9 +262,23 @@ class Daughter extends EventEmitter {
     this.store.save('usage', this.usage);
   }
 
+  /**
+   * 今天的 Token 预算还够不够这类调用。所有调用大模型的地方都要过这一关。
+   * @param {'chat'|'proactive'|'extract'|'consolidate'|'external'} kind
+   */
+  canSpend(kind) {
+    if (!SPEND_KINDS.includes(kind)) throw new Error(`未知的调用类型：${kind}`);
+    const b = this.budget();
+    return !(b.limit > 0 && b.ratio >= (b.tiredRatio ?? 0.95));
+  }
+
+  /** 调一次大模型。extra.kind 必填，预算不够时抛 BudgetError，任何新调用点都绕不过去 */
   async call(messages, extra = {}) {
+    const { kind, ...opts } = extra;
+    if (!kind) throw new Error('调用大模型必须说明 kind（chat / proactive / extract / consolidate / external）');
+    if (!this.canSpend(kind)) throw new BudgetError(kind);
     const s = this.getSettings();
-    const r = await deepseek.chat({ apiKey: s.apiKey, baseUrl: s.baseUrl, model: s.model, messages, ...extra });
+    const r = await deepseek.chat({ apiKey: s.apiKey, baseUrl: s.baseUrl, model: s.model, messages, ...opts });
     this.addUsage(r.usage);
     return r.text;
   }
@@ -337,7 +361,7 @@ class Daughter extends EventEmitter {
     const today = this.usPayload().anniversaries.find((x) => x.daysLeft === 0);
     const reason = life.proactiveReason(this.state, this.now(), { states: this.mind().report.states, special: today ? `今天是「${today.title}」，你想起来了` : undefined });
     const social = this.urges?.urges?.social?.value ?? 0;
-    if (reason && !this.busy && this.getSettings().apiKey && this.urges?.top?.id === 'social' && social >= config.get().drives.threshold) {
+    if (reason && !this.busy && this.getSettings().apiKey && this.canSpend('proactive') && this.urges?.top?.id === 'social' && social >= config.get().drives.threshold) {
       await this.speakFirst(reason).catch((err) => this.emit('error', err));
     }
   }
@@ -374,88 +398,124 @@ class Daughter extends EventEmitter {
     if (analysis.directive || analysis.question) this.state = life.addDirective(this.state, 1);
   }
 
-  /** 用户发消息，流式返回她的回复 */
+  /** 用户在桌面聊天栏发消息，流式返回她的回复 */
   reply(text) {
+    return this.exclusive(() => this._converse({ text, channel: 'desktop' }));
+  }
+
+  /**
+   * 从桌面聊天栏以外的地方来的消息（这一期只有内核页：channel = 'kernel'）。
+   * 和 reply() 走同一条路：身体反应、检索记忆、提炼记忆、预算检查；聊天记录和情景记忆多一个 channel 标签。
+   * 这一期只接受主人的消息；陌生人、群聊在阶段 G 加。
+   * @param {{text:string, channel:string, onDelta?:(d:string)=>void}} m
+   * @returns {Promise<{text:string, tired?:boolean}>}
+   */
+  replyFrom({ text, channel, onDelta } = {}) {
+    if (!text || !String(text).trim()) return Promise.reject(new Error('空消息'));
+    if (!channel || channel === 'desktop') return Promise.reject(new Error('replyFrom 需要一个通道名'));
     return this.exclusive(async () => {
-      const now = this.now();
-      const s = this.getSettings();
-      const who = s.userName || 'TA';
-      const analysis = intent.analyze(text);
-      const scan = immune.scan(text, { fromOwner: true, who });
-
-      const prevUserAt = this.state.lastUserAt;
-      let { state, events } = life.onUserMessage(this.state, now);
-      if (analysis.busy) state = life.markBusy(state, now);
-      this.state = state;
-      this.advance([...events, { type: 'user' }]);
-      this.reactToIntent(analysis, text, now);
-      this.recordEpisode(`${who}：${text}`, {
-        at: now,
-        importance: this.episodicImportance(text, analysis),
-        source: { kind: 'owner', who },
-      });
-
-      const userMsg = { role: 'user', content: text, at: now };
-      this.history.push(userMsg);
-      this.persist();
-      this.emit('vitals', this.vitalsSnapshot(), [...events, { type: 'user' }]);
-
-      const budget = this.budget();
-      if (budget.limit > 0 && budget.ratio >= (budget.tiredRatio ?? 0.95)) {
-        // 预算见底：她说累、想睡觉，而不是突然报错
-        const id = `t-${now}`;
-        const msg = { role: 'assistant', content: TIRED_REPLY, at: now, id, budgetStop: true };
-        this.emit('reply-start', id);
-        this.history.push(msg);
-        this.persist();
-        this.emit('reply-end', id, msg);
-        this.emit('notice', '今天的 Token 预算用完了，她需要休息。');
-        return msg;
-      }
-
-      const pad = body.pad(this.body, this.state);
-      const found = this.memory.search(text, { now, limit: config.get().memory.retrievalLimit || 12, mood: pad.P });
-      if (found.items.length) this.memory.recall(found.items.map((m) => m.id));
-      link.afterRecall(found.items, this.state, this.body, now);
-      this.reactReflex(text, now);
-      this.slang = slang.observe(this.slang, text, now);
-      const speech = speechState(this.body, this.state, body.pad(this.body, this.state), { care: scan.care });
-
-      const careNote = scan.care ? `TA 现在的情绪可能很不好。先关心 TA，别急着讲道理；可以温和地提醒：${immune.CARE_TEXT}` : undefined;
-      const messages = buildMessages({
-        ...this.context(careNote),
-        memories: found.items,
-        confident: found.confident,
-        lastUserAt: prevUserAt,
-        speech,
-        slang: slang.forPrompt(this.slang, text),
-      });
-
-      const id = `a-${now}`;
-      this.emit('reply-start', id);
-      let replyText;
-      try {
-        replyText = await this.call(messages, { temperature: speech.temperature, maxTokens: speech.maxTokens ?? undefined, onDelta: (d) => this.emit('reply-delta', id, d) });
-      } catch (err) {
-        this.emit('reply-end', id, null, err.message);
-        throw err;
-      }
-      const msg = { role: 'assistant', content: replyText.trim(), at: now, id };
-      this.history.push(msg);
-      this.recordEpisode(`${nameOf(s)}：${replyText.trim()}`, { at: now, importance: 0.25, source: { kind: 'self' } });
-      this.advance([{ type: 'reply' }]);
-      this.persist();
-      this.emit('reply-end', id, msg);
-      this.emit('vitals', this.vitalsSnapshot(), [{ type: 'reply' }]);
-      this.emit('memory', this.memoryPayload());
-
-      this.sinceExtract += 1;
-      if (this.sinceExtract >= EXTRACT_EVERY && s.apiKey) {
-        this.sinceExtract = 0;
-        this.extractMemories().catch((err) => this.emit('error', err));
-      }
-      return msg;
+      const msg = await this._converse({ text: String(text), channel, onDelta });
+      return msg.budgetStop ? { text: msg.content, tired: true } : { text: msg.content };
     });
+  }
+
+  /** reply 和 replyFrom 共用的主体。桌面聊天栏发 reply-* 事件；其他通道说完后发一次 channel-message */
+  async _converse({ text, channel, onDelta }) {
+    const desktop = channel === 'desktop';
+    const tag = desktop ? {} : { channel };
+    const ui = desktop
+      ? {
+          start: (id) => this.emit('reply-start', id),
+          delta: (id, d) => this.emit('reply-delta', id, d),
+          end: (id, msg) => this.emit('reply-end', id, msg),
+          fail: (id, err) => this.emit('reply-end', id, null, err.message),
+        }
+      : {
+          start: () => {},
+          delta: (_id, d) => onDelta?.(d),
+          end: (_id, msg) => this.emit('channel-message', { channel, text, reply: msg.content, at: msg.at, id: msg.id, tired: !!msg.budgetStop }),
+          fail: () => {},
+        };
+    const now = this.now();
+    const s = this.getSettings();
+    const who = s.userName || 'TA';
+    const analysis = intent.analyze(text);
+    const scan = immune.scan(text, { fromOwner: true, who });
+
+    const prevUserAt = this.state.lastUserAt;
+    let { state, events } = life.onUserMessage(this.state, now);
+    if (analysis.busy) state = life.markBusy(state, now);
+    this.state = state;
+    this.advance([...events, { type: 'user' }]);
+    this.reactToIntent(analysis, text, now);
+    this.recordEpisode(`${who}：${text}`, {
+      at: now,
+      importance: this.episodicImportance(text, analysis),
+      source: { kind: 'owner', who },
+      tags: desktop ? [] : [`channel:${channel}`],
+    });
+
+    const userMsg = { role: 'user', content: text, at: now, ...tag };
+    this.history.push(userMsg);
+    this.persist();
+    // 界面上的角色要知道你是夸她还是凶她（只带这三个布尔值）
+    const intentFlags = { praise: !!analysis.praise, criticism: !!analysis.criticism, affection: !!analysis.affection };
+    this.emit('vitals', this.vitalsSnapshot(), [...events, { type: 'user', intent: intentFlags }]);
+
+    if (!this.canSpend('chat')) {
+      // 预算见底：她说累、想睡觉，而不是突然报错
+      const id = `t-${now}`;
+      const msg = { role: 'assistant', content: TIRED_REPLY, at: now, id, budgetStop: true, ...tag };
+      ui.start(id);
+      this.history.push(msg);
+      this.persist();
+      ui.end(id, msg);
+      this.emit('notice', '今天的 Token 预算用完了，她需要休息。');
+      return msg;
+    }
+
+    const pad = body.pad(this.body, this.state);
+    const found = this.memory.search(text, { now, limit: config.get().memory.retrievalLimit || 12, mood: pad.P });
+    if (found.items.length) this.memory.recall(found.items.map((m) => m.id));
+    link.afterRecall(found.items, this.state, this.body, now);
+    this.reactReflex(text, now);
+    this.slang = slang.observe(this.slang, text, now);
+    const speech = speechState(this.body, this.state, body.pad(this.body, this.state), { care: scan.care });
+
+    const careNote = scan.care ? `TA 现在的情绪可能很不好。先关心 TA，别急着讲道理；可以温和地提醒：${immune.CARE_TEXT}` : undefined;
+    const messages = buildMessages({
+      ...this.context(careNote),
+      memories: found.items,
+      confident: found.confident,
+      lastUserAt: prevUserAt,
+      speech,
+      slang: slang.forPrompt(this.slang, text),
+    });
+
+    const id = `a-${now}`;
+    ui.start(id);
+    let replyText;
+    try {
+      replyText = await this.call(messages, { kind: 'chat', temperature: speech.temperature, maxTokens: speech.maxTokens ?? undefined, onDelta: (d) => ui.delta(id, d) });
+    } catch (err) {
+      ui.fail(id, err);
+      throw err;
+    }
+    const msg = { role: 'assistant', content: replyText.trim(), at: now, id, ...tag };
+    this.history.push(msg);
+    this.recordEpisode(`${nameOf(s)}：${replyText.trim()}`, { at: now, importance: 0.25, source: { kind: 'self' }, tags: desktop ? [] : [`channel:${channel}`] });
+    this.advance([{ type: 'reply' }]);
+    this.persist();
+    ui.end(id, msg);
+    this.emit('vitals', this.vitalsSnapshot(), [{ type: 'reply' }]);
+    this.emit('memory', this.memoryPayload());
+
+    this.sinceExtract += 1;
+    if (this.sinceExtract >= EXTRACT_EVERY && s.apiKey) {
+      this.sinceExtract = 0;
+      this.extractMemories().catch((err) => this.emit('error', err));
+    }
+    return msg;
   }
 
   /** 听到熟悉的话，身体会先有反应：条件反射 */
@@ -483,6 +543,7 @@ class Daughter extends EventEmitter {
   /** 她主动开口 */
   speakFirst(reason) {
     return this.exclusive(async () => {
+      if (!this.canSpend('proactive')) return null; // 预算用完就不主动找人
       const now = this.now();
       const s = this.getSettings();
       const top = this.body.thoughts[this.body.thoughts.length - 1];
@@ -490,7 +551,7 @@ class Daughter extends EventEmitter {
       const found = this.memory.search('', { now, limit: 6 });
       const speech = speechState(this.body, this.state, body.pad(this.body, this.state));
       const messages = buildMessages({ ...this.context(extra), memories: found.items, confident: true, speech });
-      const text = (await this.call(messages, { temperature: speech.temperature, maxTokens: speech.maxTokens ?? undefined })).trim();
+      const text = (await this.call(messages, { kind: 'proactive', temperature: speech.temperature, maxTokens: speech.maxTokens ?? undefined })).trim();
       if (!text) return null;
       this.state = life.markProactive(this.state, now);
       const msg = { role: 'assistant', content: text, at: now, id: `p-${now}`, proactive: true };
@@ -509,9 +570,9 @@ class Daughter extends EventEmitter {
   async extractMemories() {
     const s = this.getSettings();
     const recent = this.history.slice(-10);
-    if (!recent.some((m) => m.role === 'user') || !s.apiKey) return null;
+    if (!recent.some((m) => m.role === 'user') || !s.apiKey || !this.canSpend('extract')) return null; // 预算用完就留给睡眠整理
     const known = this.memory.byLayer('semantic').map((m) => m.text);
-    const raw = await this.call(memory.extractionMessages(recent, known, s.userName, nameOf(s)), { json: true, temperature: 0.2 });
+    const raw = await this.call(memory.extractionMessages(recent, known, s.userName, nameOf(s)), { kind: 'extract', json: true, temperature: 0.2 });
     const data = deepseek.parseJSONLoose(raw);
     if (!data) return null;
     let added = 0;
@@ -546,7 +607,8 @@ class Daughter extends EventEmitter {
       const date = life.dateKey(now - 4 * 3600000);
       const existing = this.diary.find((d) => d.date === date);
       if (existing && !force && reason === 'sleep') return { ok: true, skipped: true, reason: '今天已经写过日记了' };
-      const call = s.apiKey ? (m, o) => this.call(m, o) : null;
+      // 没有 Key，或者今天预算用完了：退回本地整理，不调用模型
+      const call = s.apiKey && this.canSpend('consolidate') ? (m, o) => this.call(m, { ...o, kind: 'consolidate' }) : null;
       const res = await consolidate.consolidate({
         quality: link.sleepQuality(this.body, this.state),
         bank: this.memory,
@@ -558,6 +620,24 @@ class Daughter extends EventEmitter {
         name: nameOf(s),
         force: force || reason !== 'sleep',
       });
+      if (res.ok === false && res.error === 'bad-json') {
+        // 模型没按格式回：这晚不算整理过，下次再试；连续失败 3 次就先做本地整理，免得积压越来越多
+        this.profile.consolidateFailures = (this.profile.consolidateFailures || 0) + 1;
+        if (this.profile.consolidateFailures < 3) {
+          this.persist();
+          this.emit('notice', '今晚没整理好记忆，下次睡觉时再试。');
+          return { ...res, reason };
+        }
+        const since = this.profile.lastConsolidatedAt || now - 86400000;
+        const pending = this.memory.records.filter((r) => r.layer === 'episodic' && !r.archived && r.at >= since && r.at <= now);
+        const local = consolidate.localConsolidate({ bank: this.memory, profile: this.profile, episodes: pending, now });
+        this.profile.consolidateFailures = 0;
+        this.persist();
+        this.emit('notice', '连续几晚没整理好记忆，先做了一次简单整理。');
+        this.emit('memory', this.memoryPayload());
+        return { ...local, fallback: true, reason };
+      }
+      if (res.ok) this.profile.consolidateFailures = 0;
       const ph = this.body.phys.immune.stats;
       ph.stability += res.cleaned || 0;
       ph.surveillance += res.conflicts || 0;
@@ -696,4 +776,4 @@ class Daughter extends EventEmitter {
   }
 }
 
-module.exports = { Daughter, TIRED_REPLY };
+module.exports = { Daughter, BudgetError, TIRED_REPLY };

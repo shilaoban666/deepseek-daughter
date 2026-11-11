@@ -1,22 +1,27 @@
-// 设置页：DeepSeek、名字、备份。平台列表 PLATFORMS 给「发现探索」用。
+// 设置页：DeepSeek、名字、备份、关于。平台插件在「发现探索」（views/explore.js）。
 
 import { esc } from './util.js';
-
-export const PLATFORMS = [
-  { name: 'QQ', color: '#1d9bf0', mark: 'Q', stage: '阶段 3', desc: '通过 OneBot（NapCat / LLOneBot）住进 QQ：私聊、群聊、主动找你。', field: { key: 'onebotUrl', label: 'OneBot WebSocket 地址', ph: 'ws://127.0.0.1:3001' } },
-  { name: '微信', color: '#07c160', mark: '微', stage: '阶段 3', desc: '在微信里和你聊天、发朋友圈评论（需要你同意才发）。' },
-  { name: 'B 站', color: '#fb7299', mark: 'B', stage: '阶段 4', desc: '自己刷视频、看字幕“吃饭”，把看到的有意思的东西讲给你听。' },
-  { name: '小说', color: '#c9853f', mark: '书', stage: '阶段 4', desc: '读你推荐的小说，读完写读后感，记住剧情和人物。' },
-  { name: '抖音', color: '#25f4ee', mark: '抖', stage: '阶段 5', desc: '刷短视频，偶尔留言。' },
-  { name: '小红书', color: '#ff2442', mark: '红', stage: '阶段 5', desc: '看笔记、收藏喜欢的东西。' },
-  { name: 'X', color: '#8899a6', mark: 'X', stage: '阶段 5', desc: '关注感兴趣的话题。' },
-  { name: 'YouTube', color: '#ff0033', mark: '▶', stage: '阶段 5', desc: '看视频、学东西。' },
-];
 
 const MODELS = [
   ['deepseek-chat', 'deepseek-chat（日常聊天，推荐）'],
   ['deepseek-reasoner', 'deepseek-reasoner（深度思考，更慢更贵）'],
 ];
+
+/** 关于：各组件版本，排查问题时看这里 */
+function aboutCard(v, petSkin) {
+  if (!v) return '';
+  const pet = petSkin
+    ? `<p>角色动画：dsh-pet 的鲸鱼娘，作者 PC2005-cloud（github.com/PC2005-cloud/dsh-pet${petSkin.source?.version ? ` · ${esc(petSkin.source.version)}` : ''}）。素材禁止商用。</p>`
+    : '<p>角色：内置的原创 3D 鲸鱼。</p>';
+  return `<div class="card plat" id="about">
+      <div class="plat-head"><div class="plat-icon" style="background:linear-gradient(135deg,#4fd6ff,#2a3fb0)">i</div>
+        <div><b>关于</b><small>大肥鱼 ${esc(v.app)}</small></div></div>
+      <p class="mono">Electron ${esc(v.electron)} · Node ${esc(v.node)} · Chromium ${esc(v.chrome)}</p>
+      ${pet}
+      <p>大脑皮层网格：Anderson Winkler，Brain for Blender，CC BY-SA 3.0。</p>
+      ${v.dsh ? `<p>内核：DeepSeek Harness ${esc(v.dsh)}，BSD-3-Clause，Copyright (c) 2026 DeepSeek。各组件的许可证原文随程序一起分发；完整清单见项目仓库的 docs/第三方许可.md。</p>` : ''}
+    </div>`;
+}
 
 export function renderLinks(root, S, actions) {
   const st = S.settings;
@@ -67,7 +72,8 @@ export function renderLinks(root, S, actions) {
         <button class="link" id="lk-backups">查看备份</button>
       </div>
       ${backups && backups.length ? `<ul class="intake-list">${backups.map((b) => `<li><span class="mono">${esc(b.day)}</span><span>${b.files} 个文件</span><b>${(b.bytes / 1024).toFixed(1)} KB</b></li>`).join('')}</ul>` : ''}
-    </div>`;
+    </div>
+    ${aboutCard(S.versions, S.petSkin)}`;
 
   const q = (s) => root.querySelector(s);
   q('#lk-save').addEventListener('click', () => {
