@@ -9,21 +9,24 @@ function occurrence(month, day, year) {
   return new Date(year, month - 1, Math.min(day, last));
 }
 
-function nextOccurrence(date, now) {
-  const [, month, day] = String(date).split('-').map(Number);
+/** fromNextYear：只从一周年起算（“第一次见面”当天不算纪念日） */
+function nextOccurrence(date, now, fromNextYear = false) {
+  const [year, month, day] = String(date).split('-').map(Number);
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
-  let d = occurrence(month, day, today.getFullYear());
-  if (d < today) d = occurrence(month, day, today.getFullYear() + 1);
-  return { date: d, daysLeft: Math.round((d - today) / DAY) };
+  let y = today.getFullYear();
+  if (fromNextYear && y <= year) y = year + 1;
+  let d = occurrence(month, day, y);
+  if (d < today) d = occurrence(month, day, y + 1);
+  return { date: d, daysLeft: Math.round((d - today) / DAY), years: d.getFullYear() - year };
 }
 
 /** days 天之内要到的纪念日，近的在前 */
 function upcoming(items, now, days) {
   return items
     .map((x) => {
-      const n = nextOccurrence(x.date, now);
-      return { id: x.id, title: x.title, auto: !!x.auto, date: `${n.date.getFullYear()}-${pad(n.date.getMonth() + 1)}-${pad(n.date.getDate())}`, daysLeft: n.daysLeft };
+      const n = nextOccurrence(x.date, now, !!x.auto);
+      return { id: x.id, title: x.title, auto: !!x.auto, date: `${n.date.getFullYear()}-${pad(n.date.getMonth() + 1)}-${pad(n.date.getDate())}`, daysLeft: n.daysLeft, years: n.years };
     })
     .filter((x) => x.daysLeft <= days)
     .sort((a, b) => a.daysLeft - b.daysLeft);

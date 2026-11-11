@@ -12,15 +12,16 @@ const { buildMessages } = require('../src/main/persona');
 const at = (y, mo, d, h = 12) => new Date(y, mo - 1, d, h).getTime();
 const DAY = 86400000;
 
-test('菜单：8 个板块、24 个路由，顺序和文字与需求一致', async () => {
+test('菜单：8 个板块、25 个路由，顺序和文字与需求一致', async () => {
   const { NAV, routes } = await import('../src/renderer/nav-data.mjs');
   assert.deepEqual(NAV.map((n) => n.label), ['概览', '意识和记忆', '我们', '神经活动', '代谢活动', '免疫活动', '发现探索', '设置']);
-  assert.equal(routes().length, 24);
+  assert.equal(routes().length, 25);
   assert.deepEqual(NAV[1].tabs.map((t) => t.label), ['意识海', '思想', '人格', '记忆', '情绪']);
   assert.deepEqual(NAV[2].tabs.map((t) => t.label), ['回忆', '黑话', '关系', '纪念日']);
   assert.deepEqual(NAV[3].tabs.map((t) => t.label), ['大脑3D', '神经系统', '神经递质']);
   assert.deepEqual(NAV[4].tabs.map((t) => t.label), ['消化活动', '呼吸与心率', '体液系统', '内分泌系统', '泌尿系统', '生殖系统']);
   assert.deepEqual(NAV[5].tabs.map((t) => t.label), ['淋巴系统', '免疫调节']);
+  assert.deepEqual(NAV[6].tabs.map((t) => t.label), ['平台插件', '内核']);
 });
 
 test('路由：非法输入回退到概览，只写板块时取第一个 Tab', async () => {
@@ -93,4 +94,18 @@ test('记忆四阶段', () => {
   assert.equal(stage({ layer: 'semantic', recallCount: 4, at: now - 40 * DAY }), 'second');
   assert.equal(stage({ layer: 'semantic', recallCount: 5, at: now - 40 * DAY }), 'third');
   assert.equal(stage({ layer: 'semantic', recallCount: 5, at: now - 10 * DAY }), 'second');
+});
+
+test('纪念日：第一次见面要到一周年才算，认识的当天不算', () => {
+  const anniversary = require('../src/main/anniversary');
+  const now = new Date(2026, 10, 10, 15).getTime();
+  const [first] = anniversary.upcoming([{ id: 'first-meet', title: '第一次见面', date: '2026-11-10', auto: true }], now, 400);
+  assert.equal(first.date, '2027-11-10');
+  assert.equal(first.daysLeft, 365);
+  assert.equal(first.years, 1);
+  const [later] = anniversary.upcoming([{ id: 'first-meet', title: '第一次见面', date: '2025-11-10', auto: true }], now, 400);
+  assert.equal(later.daysLeft, 0, '一年后的同一天才是纪念日');
+  // 自己添加的日子（比如生日）当天就算
+  const [bday] = anniversary.upcoming([{ id: 'b', title: '生日', date: '2026-11-10' }], now, 400);
+  assert.equal(bday.daysLeft, 0);
 });

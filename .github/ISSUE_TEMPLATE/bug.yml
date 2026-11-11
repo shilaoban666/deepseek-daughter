@@ -1,0 +1,43 @@
+name: 🐛 出问题了
+description: 程序报错、卡住、显示不对，或者她的行为明显坏了
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 你做了什么，看到了什么，本来以为会看到什么。能截图最好。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 怎么重现
+      placeholder: |
+        1. 打开「发现探索 › 内核」
+        2. 点“启动”
+        3. ……
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 「设置」页最下面的“关于”里那两行，直接抄过来
+      placeholder: 大肥鱼 0.3.0 · Electron 45.2.3 · Node 24.22.2
+    validations:
+      required: true
+  - type: dropdown
+    id: how
+    attributes:
+      label: 怎么运行的
+      options:
+        - 下载的 exe
+        - 源码 npm start
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志（可选）
+      description: 内核相关的问题请贴 `%APPDATA%\大肥鱼\logs\dsh.log` 的最后几十行。**贴之前请确认里面没有你的 API Key 和 QQ 号。**
+      render: text

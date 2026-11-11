@@ -168,9 +168,20 @@
   },
 
   "consolidation": {
+    "_comment": "strangerOverlap：提炼出的事实和陌生人说过的话相似到这个程度，就按陌生人来源记，并标为待求证",
+    "strangerOverlap": 0.5,
     "minEpisodes": 3,
     "maxEpisodesPerRun": 80,
     "maxTokensEstimate": 6000
+  },
+
+  "pet": {
+    "_comment": "概览页的角色。skin 对应 assets/pet/<skin>/；素材不在时自动用 3D 鲸鱼",
+    "skin": "whale-girl",
+    "bubbleSeconds": 3,
+    "pokeCooldownMs": 400,
+    "greetAfterHours": 3,
+    "balanceTiers": [1, 5, 10, 20, 50]
   },
 
   "backup": {
