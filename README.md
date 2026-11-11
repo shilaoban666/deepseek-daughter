@@ -221,10 +221,10 @@ apps/desktop/
 | **v0.1** | 生命核心：大脑、身体、记忆、驱力、人格、免疫 | ✅ 完成 |
 | **v0.2** | 生命控制台：八个板块、3D 全息大脑、意识海、身心闭环 | ✅ 完成 |
 | **[v0.3](https://github.com/shilaoban666/deepseek-daughter/releases/tag/v0.3.0)** | 鲸鱼娘角色、内嵌 DSH 内核与生命网关、插件页、Electron 45 | ✅ 当前版本 |
-| **[v0.4](https://github.com/shilaoban666/deepseek-daughter/milestones)** | 住进 QQ 和微信：私聊、群聊隐私隔离、在 QQ 上主动找你 | 🚧 下一个 |
-| **v0.5** | 内容消费：自己读小说、看 B 站，把看到的讲给你听 | 📋 计划中 |
-| **v0.6** | 社交平台与审核队列：小红书、抖音、X、YouTube，发言先过你 | 📋 计划中 |
-| **v1.0** | 桌宠与房间、首次启动引导、自动更新 | 📋 计划中 |
+| **[v0.4](https://github.com/shilaoban666/deepseek-daughter/milestone/2)** | 住进 QQ 和微信：私聊、群聊隐私隔离、在 QQ 上主动找你 | 🚧 下一个 |
+| **[v0.5](https://github.com/shilaoban666/deepseek-daughter/milestone/3)** | 内容消费：自己读小说、看 B 站，把看到的讲给你听 | 📋 计划中 |
+| **[v0.6](https://github.com/shilaoban666/deepseek-daughter/milestone/4)** | 社交平台与审核队列：小红书、抖音、X、YouTube，发言先过你 | 📋 计划中 |
+| **[v1.0](https://github.com/shilaoban666/deepseek-daughter/milestone/5)** | 桌宠与房间、首次启动引导、自动更新 | 📋 计划中 |
 
 每个版本要做的事都拆成了 Issue，挂在对应的 [里程碑](https://github.com/shilaoban666/deepseek-daughter/milestones) 下面。更新记录见 [CHANGELOG](CHANGELOG.md)，完整的任务清单见 [执行计划](docs/执行计划.md)。
 
