@@ -5,6 +5,7 @@ import { createWhale } from './whale3d.js';
 import { createPet } from './pet/index.js';
 import { NAV, DEFAULT_ROUTE, parseRoute, routes } from './nav-data.mjs';
 import { $, esc, fmtTime, fmtClock } from './util.js';
+import { mountCharts } from './views/charts.js';
 import * as overview from './views/overview.js';
 import * as mind from './views/mind.js';
 import * as us from './views/us.js';
@@ -237,6 +238,7 @@ function renderPage() {
   gl.park();
   try {
     VIEWS[route.view].render(page, route.tab, ctx);
+    mountCharts(page);
   } catch (err) {
     console.error(err);
     page.innerHTML = `<div class="empty">这个页面出错了：${esc(err.message)}</div>`;
