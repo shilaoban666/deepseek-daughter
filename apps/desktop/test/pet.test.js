@@ -12,7 +12,11 @@ const { report } = require('../src/main/physiology/report');
 
 const load = (f) => import(`../src/renderer/pet/${f}`);
 const skinDir = process.env.DFY_PET_DIR || path.join(__dirname, '..', 'assets', 'pet', 'whale-girl');
-const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'assets', 'pet', 'whale-girl', 'pet.json'), 'utf8'));
+// 商用时整个 whale-girl/ 目录会被删掉：用到映射表的测试跳过，纯逻辑的测试照跑
+const petJson = path.join(__dirname, '..', 'assets', 'pet', 'whale-girl', 'pet.json');
+const havePet = fs.existsSync(petJson);
+const manifest = havePet ? JSON.parse(fs.readFileSync(petJson, 'utf8')) : null;
+const NO_PET = '没有鲸鱼娘素材（商用时删掉了）';
 const clipsDir = path.join(skinDir, 'clips');
 const haveClips = fs.existsSync(clipsDir);
 
@@ -144,7 +148,7 @@ test('角色：余额换档才播钱包动画，同一档不重复播', async ()
   assert.deepEqual(m.pending.map((x) => x.name), ['wallet']);
 });
 
-test('角色：陪伴感低时加爱心图标，发烧时色调偏红，睡着时变暗', async () => {
+test('角色：陪伴感低时加爱心图标，发烧时色调偏红，睡着时变暗', { skip: havePet ? false : NO_PET }, async () => {
   const { derive, initial } = await load('pet-state.mjs');
   const { decorations } = await load('pet-director.mjs');
   const lonely = decorations(manifest, derive(snap({ state: { social: 10 }, states: [] }), initial(), NOW));
@@ -159,20 +163,20 @@ test('角色：陪伴感低时加爱心图标，发烧时色调偏红，睡着�
 
 // ---------- 选片 ----------
 
-test('选片：映射表引用的每段动画文件都存在', { skip: haveClips ? false : '没有素材目录（商用时删掉了）' }, async () => {
+test('选片：映射表引用的每段动画文件都存在', { skip: haveClips && havePet ? false : NO_PET }, async () => {
   const { referencedClips } = await load('pet-director.mjs');
   const missing = referencedClips(manifest).filter((c) => !fs.existsSync(path.join(clipsDir, `${c}.webm`)));
   assert.deepEqual(missing, []);
 });
 
-test('选片：素材里的每一段动画都被用上了', { skip: haveClips ? false : '没有素材目录（商用时删掉了）' }, async () => {
+test('选片：素材里的每一段动画都被用上了', { skip: haveClips && havePet ? false : NO_PET }, async () => {
   const { referencedClips } = await load('pet-director.mjs');
   const used = new Set(referencedClips(manifest));
   const unused = fs.readdirSync(clipsDir).filter((f) => f.endsWith('.webm')).map((f) => f.slice(0, -5)).filter((c) => !used.has(c));
   assert.deepEqual(unused, []);
 });
 
-test('选片：右键菜单能点到全部动画，并且没有写错名字', async () => {
+test('选片：右键菜单能点到全部动画，并且没有写错名字', { skip: havePet ? false : NO_PET }, async () => {
   const { referencedClips, menuClips } = await load('pet-director.mjs');
   const menu = menuClips(manifest);
   assert.equal(new Set(menu).size, menu.length, '菜单里有重复');
@@ -180,7 +184,7 @@ test('选片：右键菜单能点到全部动画，并且没有写错名字', as
   if (haveClips) assert.deepEqual(menu.filter((c) => !fs.existsSync(path.join(clipsDir, `${c}.webm`))), []);
 });
 
-test('选片：15 个动作、13 个反应、8 种情绪标签在映射表里都有', async () => {
+test('选片：15 个动作、13 个反应、8 种情绪标签在映射表里都有', { skip: havePet ? false : NO_PET }, async () => {
   const { ACTIONS, REACTIONS } = await load('pet-state.mjs');
   for (const a of ACTIONS) {
     if (['sleep', 'eat', 'idle'].includes(a)) continue; // 这三个有专门的表
@@ -190,14 +194,14 @@ test('选片：15 个动作、13 个反应、8 种情绪标签在映射表里都
   for (const mood of ['兴奋', '开心', '期待', '平静', '无聊', '有点闷', '焦虑', '委屈']) assert.ok(manifest.moods[mood]?.clips.length, mood);
 });
 
-test('选片：早饭播吃早餐，纪念日那天吃长寿面', async () => {
+test('选片：早饭播吃早餐，纪念日那天吃长寿面', { skip: havePet ? false : NO_PET }, async () => {
   const { nextClip } = await load('pet-director.mjs');
   const rnd = () => 0.3;
   assert.equal(nextClip(manifest, { action: 'eat', meal: '早饭', mood: '平静' }, { now: NOW, rnd }).clip, '吃早餐');
   assert.equal(nextClip(manifest, { action: 'eat', meal: '午饭', mood: '平静' }, { now: NOW, rnd, anniversaryToday: true }).clip, '吃长寿面');
 });
 
-test('选片：睡觉分入睡、循环、起来三段', async () => {
+test('选片：睡觉分入睡、循环、起来三段', { skip: havePet ? false : NO_PET }, async () => {
   const { nextClip } = await load('pet-director.mjs');
   const d = { action: 'sleep', mood: '平静' };
   assert.equal(nextClip(manifest, d, { now: NOW, sleepPhase: 'start' }).clip, '睡觉-开始');
@@ -211,7 +215,7 @@ function seeded(seed = 7) {
   return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
-test('选片：节日当天时节动画的比重变大', async () => {
+test('选片：节日当天时节动画的比重变大', { skip: havePet ? false : NO_PET }, async () => {
   const { nextClip } = await load('pet-director.mjs');
   const count = (now) => {
     const rnd = seeded();
@@ -226,7 +230,7 @@ test('选片：节日当天时节动画的比重变大', async () => {
   assert.equal(plain, 0, '平时、而且这个月没有季节动画，就不抽时节');
 });
 
-test('选片：不会连着播同一段', async () => {
+test('选片：不会连着播同一段', { skip: havePet ? false : NO_PET }, async () => {
   const { nextClip } = await load('pet-director.mjs');
   const rnd = seeded(3);
   let last = null;
@@ -237,7 +241,7 @@ test('选片：不会连着播同一段', async () => {
   }
 });
 
-test('选片：季节限定的动画只在对应月份出现', async () => {
+test('选片：季节限定的动画只在对应月份出现', { skip: havePet ? false : NO_PET }, async () => {
   const { nextClip } = await load('pet-director.mjs');
   const seen = (now, action = 'idle', meal) => {
     const rnd = seeded(11);
@@ -256,7 +260,7 @@ test('选片：季节限定的动画只在对应月份出现', async () => {
   assert.ok(!seen(new Date(2026, 10, 10, 15).getTime()).has('晨间刷牙'));
 });
 
-test('选片：心情差时点她会生气，心情好时开心', async () => {
+test('选片：心情差时点她会生气，心情好时开心', { skip: havePet ? false : NO_PET }, async () => {
   const { reactionClip } = await load('pet-director.mjs');
   assert.equal(reactionClip(manifest, 'poke', { mood: '委屈' }, { rnd: () => 0 }), '点击回应-傲娇生气');
   assert.ok(manifest.reactions.poke.good.includes(reactionClip(manifest, 'poke', { mood: '开心' }, { rnd: () => 0 })));

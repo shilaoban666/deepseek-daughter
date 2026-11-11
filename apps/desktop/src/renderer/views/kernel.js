@@ -60,7 +60,7 @@ function statusCard() {
     <div class="k-info">
       ${row('DSH 版本', esc(st.version || '—'))}
       ${row('进程号', st.pid ? esc(st.pid) : '—')}
-      ${row('已运行', esc(up))}
+      ${row('已运行', `<span id="kUp">${esc(up)}</span>`)}
       ${row('重启次数', esc(st.restarts ?? 0))}
       ${row('最近一次错误', st.lastError ? esc(st.lastError) : '没有', st.lastError ? 'warn' : '')}
       ${row('数据目录', `<code>${esc(st.dataDir || '')}</code>`)}
@@ -163,6 +163,12 @@ export function render(el, ctx) {
   ensureKernel(ctx);
   paint();
 }
+
+// “已运行”每秒走一次（只改那一格，不重画页面）
+setInterval(() => {
+  const el = currentEl?.querySelector('#kUp');
+  if (el && status?.state === 'running' && status.since) el.textContent = fmtDur(Date.now() - status.since);
+}, 1000);
 
 // 开发和测试用
 window.__kernelSaid = () => said.map((x) => ({ ...x }));

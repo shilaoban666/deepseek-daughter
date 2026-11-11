@@ -177,4 +177,10 @@ apps/desktop/
 
 ## 许可证
 
-[Apache-2.0](LICENSE)
+本项目自己的代码是 [Apache-2.0](LICENSE)。不适用 Apache-2.0 的部分：
+
+- 上面“素材许可”里的两个素材目录。
+- `apps/desktop/src/renderer/vendor/three/`：three.js，MIT，目录里带原许可证。
+- 安装包里随附的 DSH 内核及其依赖（`npm install` 装的，不在仓库里）：DSH 各包 BSD-3-Clause，其余 MIT / ISC / Python-2.0，许可证原文随包分发。
+
+逐项清单见 [docs/第三方许可.md](docs/第三方许可.md)。
