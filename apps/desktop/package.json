@@ -1,7 +1,7 @@
 {
   "name": "deepseek-daughter-desktop",
   "productName": "大肥鱼",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "大肥鱼：住在你电脑里的 AI 女孩，由 DeepSeek 驱动",
   "license": "Apache-2.0",
   "private": true,
