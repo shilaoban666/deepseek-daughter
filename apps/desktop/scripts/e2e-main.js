@@ -128,6 +128,45 @@ async function petChecks() {
   const alpha = await js(`(()=>{const v=document.querySelector('.pet-video.front');const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(v,0,0);return [g.getImageData(3,3,1,1).data[3], g.getImageData(c.width-4,3,1,1).data[3]]})()`);
   check('角色：背景是透明的', alpha.every((a) => a <= 1), alpha.join(','));
   check('角色：没有缺失的动画文件', (await js('window.__petCoverage().length')) === 0);
+  // 每一段动画都要真的能解码（走程序实际用的 pet:// 协议），不只是文件在
+  const decode = await js(`(async()=>{
+    const info = await window.fish.petSkin();
+    const clips = info.manifest.menu.flatMap((g) => g.clips);
+    const bad = [];
+    const one = (c) => new Promise((resolve) => {
+      const v = document.createElement('video');
+      v.muted = true; v.preload = 'auto';
+      const done = (ok, why) => { v.removeAttribute('src'); v.load(); if (!ok) bad.push(c + '：' + why); resolve(); };
+      v.onloadeddata = () => done(v.videoWidth === 640 && v.duration > 0, v.videoWidth + 'x' + v.videoHeight);
+      v.onerror = () => done(false, 'error ' + (v.error && v.error.code));
+      setTimeout(() => done(false, '超时'), 8000);
+      v.src = info.baseUrl + '/' + encodeURIComponent(c) + '.webm';
+    });
+    for (let i = 0; i < clips.length; i += 8) await Promise.all(clips.slice(i, i + 8).map(one));
+    return { total: clips.length, bad };
+  })()`);
+  check(`角色：右键菜单里的 ${decode.total} 段动画都能解码`, decode.total === 114 && decode.bad.length === 0, decode.bad.slice(0, 3).join(' | '));
+  // 真的点右键菜单：每组点第一段，正在播的就是它
+  const menuPlay = await js(`(async()=>{
+    const stage = document.querySelector('.pet-stage') || document.querySelector('.pet-video').parentElement;
+    const groups = (await window.fish.petSkin()).manifest.menu;
+    const wrong = [];
+    for (let g = 0; g < groups.length; g++) {
+      const r = stage.getBoundingClientRect();
+      stage.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+      await new Promise((x) => setTimeout(x, 50));
+      const menu = document.querySelector('.pet-menu');
+      if (!menu) { wrong.push('菜单没打开'); break; }
+      menu.querySelector('[data-g="' + g + '"]').click();
+      const want = groups[g].clips[0];
+      menu.querySelector('[data-clip="' + CSS.escape(want) + '"]').click();
+      await new Promise((x) => setTimeout(x, 150));
+      const now = window.__petNow();
+      if (!now || now.clip !== want) wrong.push(want + '→' + (now && now.clip));
+    }
+    return { groups: groups.length, wrong };
+  })()`);
+  check(`角色：右键菜单 ${menuPlay.groups} 组都能点播`, menuPlay.wrong.length === 0, menuPlay.wrong.slice(0, 3).join(' | '));
   // 页面刷新（心跳、来消息都会触发）不能打断正在播的动画
   const before = await js("({clip: window.__petNow().clip, t: document.querySelector('.pet-video.front').currentTime})");
   await js("window.__go('overview/now')");
@@ -344,6 +383,11 @@ async function kernelScenario() {
   const st = await js('window.fish.dshStatus()');
   notePid(st.pid);
   check('内核：页面显示运行中和 3 个插件', await waitFor("document.querySelector('#kStatus').innerText.includes('运行中') && document.querySelectorAll('.k-plugins li').length===3", 5000));
+  const up0 = await js("document.querySelector('#kUp')?.textContent");
+  // 每秒走一次、相位随机：等 2.3 秒才保证中间有一次是在启动 1 秒以后走的
+  await sleep(2300);
+  const up1 = await js("document.querySelector('#kUp')?.textContent");
+  check('内核：“已运行”在走', up0 && up1 && up0 !== up1, `${up0} → ${up1}`);
   check('内核：没有加载能动电脑的插件', !st.plugins.some((p) => /bash|pwsh|terminal|fs-local|web|subagent|mcp|tool-skill|tool-jobs|editor/.test(p.name)), st.plugins.map((p) => p.name).join(','));
 
   const before = requests.length;
