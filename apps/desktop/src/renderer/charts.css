@@ -310,3 +310,21 @@
 .ocean-legend i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .ocean-legend em { margin-left: auto; font: normal 11px var(--mono); color: var(--text); }
 .immersive .ocean-legend { display: none; }
+
+/* 大脑 3D：自动标出最活跃的脑区 */
+.region-callout { position: absolute; left: 0; top: 0; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 3px 9px 3px 7px; border-radius: 12px; border: 1px solid rgba(255, 226, 160, .55); background: rgba(10, 16, 30, .78); color: #ffeec4; font-size: 12px; white-space: nowrap; pointer-events: none; box-shadow: 0 0 14px rgba(255, 200, 100, .25); will-change: transform; }
+.region-callout::before { content: ''; position: absolute; left: -12px; top: 100%; width: 14px; height: 12px; border-left: 1px solid rgba(255, 226, 160, .6); border-top: 1px solid rgba(255, 226, 160, .6); transform: translateY(-8px) skewX(-38deg); transform-origin: top left; }
+.region-callout i { width: 7px; height: 7px; border-radius: 50%; background: #ffd27a; box-shadow: 0 0 8px #ffd27a; animation: blink 1.4s infinite; }
+.region-callout b { font-weight: 500; }
+.region-callout span { font: 11px var(--mono); color: #ffd27a; }
+.region-callout.first { font-size: 13px; border-color: #ffd27a; box-shadow: 0 0 18px rgba(255, 200, 100, .45); }
+.region-label.hot { color: #ffeec4; border-left-color: #ffd27a; text-shadow: 0 0 8px rgba(255, 200, 100, .9); }
+.brain-active { position: absolute; left: 14px; top: 14px; z-index: 2; width: 176px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: rgba(6, 12, 26, .62); backdrop-filter: blur(6px); font-size: 12px; pointer-events: none; }
+.brain-active b { display: block; margin-bottom: 6px; font-weight: 500; color: var(--dim); letter-spacing: 1px; font-size: 11px; }
+.brain-active div { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 2px 6px; padding: 3px 0; }
+.brain-active span { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brain-active em { font: normal 11px var(--mono); color: #ffd27a; text-align: right; }
+.brain-active u { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: rgba(127, 178, 255, .12); text-decoration: none; overflow: hidden; }
+.brain-active u i { display: block; height: 100%; background: linear-gradient(90deg, rgba(255, 210, 122, .4), #ffd27a); transition: width .5s; }
+.immersive .brain-active { display: none; }
+.ocean-label.hub { font-size: 12px; color: #fff; border-left-color: rgba(255, 255, 255, .8); background: rgba(6, 12, 26, .55); }

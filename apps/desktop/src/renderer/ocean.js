@@ -114,6 +114,56 @@ const dropShader = {
     void main() { gl_FragColor = vec4(vColor, 0.2 * (1.0 - vT) * (1.0 - vT)); }`,
 };
 
+// 从海里慢慢升起来的光点，像夜里的浮游生物
+const moteShader = {
+  vertexShader: /* glsl */ `
+    attribute float aSeed;
+    uniform float uTime, uDpr;
+    varying float vA;
+    varying float vSeed;
+    void main() {
+      vec3 p = position;
+      float f = fract(position.y + uTime * (0.012 + aSeed * 0.02));
+      p.y = -1.5 + f * 3.6;
+      p.x += sin(uTime * 0.35 + aSeed * 40.0) * 0.18;
+      p.z += cos(uTime * 0.28 + aSeed * 31.0) * 0.18;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = clamp((2.0 + aSeed * 4.0) * uDpr * 9.0 / max(1.0, -mv.z), 1.0, 12.0);
+      vA = sin(f * 3.14159) * (0.25 + 0.75 * abs(sin(uTime * (0.6 + aSeed) + aSeed * 50.0)));
+      vSeed = aSeed;
+    }`,
+  fragmentShader: /* glsl */ `
+    varying float vA;
+    varying float vSeed;
+    void main() {
+      float d = length(gl_PointCoord - 0.5) * 2.0;
+      if (d > 1.0) discard;
+      vec3 c = vSeed > 0.8 ? vec3(1.0, 0.85, 0.55) : vSeed > 0.45 ? vec3(0.45, 0.9, 1.0) : vec3(0.6, 0.7, 1.0);
+      gl_FragColor = vec4(c, exp(-d * d * 4.0) * vA * 0.5);
+    }`,
+};
+
+// 绕着“自我”转的几道细环
+const orbitShader = {
+  vertexShader: /* glsl */ `
+    attribute float aAng;
+    uniform float uTime, uSpeed;
+    varying float vAng;
+    void main() {
+      float a = uTime * uSpeed;
+      vec3 p = position;
+      p.xz = mat2(cos(a), -sin(a), sin(a), cos(a)) * p.xz;
+      p.y += 0.35 + sin(uTime * 0.6) * 0.07;
+      vAng = aAng + a * 2.0;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform vec3 uColor;
+    varying float vAng;
+    void main() { gl_FragColor = vec4(uColor, 0.1 + 0.5 * pow(max(0.0, sin(vAng)), 6.0)); }`,
+};
+
 // 海面中央一片发光的水域，外加一圈圈往外走的涟漪
 const poolShader = {
   vertexShader: /* glsl */ `
@@ -276,6 +326,37 @@ export function createOcean({ stage, dpr, shared }) {
   pool.visible = false;
   pool.renderOrder = 1;
   group.add(pool);
+  // 浮游的光点和“自我”的轨道环，也只在有记忆时出现
+  const decor = new THREE.Group();
+  decor.visible = false;
+  group.add(decor);
+  {
+    const count = 260, pos = new Float32Array(count * 3), seed = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const r = 0.6 + Math.sqrt(hash('mr' + i)) * 5.2, a = hash('ma' + i) * Math.PI * 2;
+      pos[i * 3] = Math.cos(a) * r; pos[i * 3 + 1] = hash('my' + i); pos[i * 3 + 2] = Math.sin(a) * r;
+      seed[i] = hash('ms' + i);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+    decor.add(new THREE.Points(g, new THREE.ShaderMaterial({ ...moteShader, uniforms, ...additive })));
+    for (const [radius, tilt, speed, col] of [[0.4, 0.45, 0.5, '#9fd8ff'], [0.56, -0.3, -0.32, '#ffe6a8'], [0.72, 0.8, 0.2, '#c6a8ff']]) {
+      const N = 96, rp = new Float32Array(N * 3), ra = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        const x = Math.cos(a) * radius, z = Math.sin(a) * radius;
+        rp[i * 3] = x; rp[i * 3 + 1] = z * Math.sin(tilt); rp[i * 3 + 2] = z * Math.cos(tilt);
+        ra[i] = a;
+      }
+      const rg = new THREE.BufferGeometry();
+      rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+      rg.setAttribute('aAng', new THREE.BufferAttribute(ra, 1));
+      const ring = new THREE.LineLoop(rg, new THREE.ShaderMaterial({ ...orbitShader, uniforms: { uTime: shared.uTime, uSpeed: { value: speed }, uColor: { value: new THREE.Color(col) } }, ...additive }));
+      ring.renderOrder = 2;
+      decor.add(ring);
+    }
+  }
 
   {
     const n = 132, pos = new Float32Array(n * n * 3);
@@ -311,10 +392,11 @@ export function createOcean({ stage, dpr, shared }) {
   }
   function buildLabels() {
     clearLabels();
-    if (!labelsOn || !group.visible) return;
-    nodes.filter((x) => x.type === 'entity').sort((a, b) => b.size - a.size).slice(0, MAX_LABELS).forEach((node) => {
+    if (!group.visible) return;
+    const isHub = (x) => x.key === 'self' || x.key.startsWith('hub:');
+    nodes.filter((x) => x.type === 'entity' && (labelsOn || isHub(x))).sort((a, b) => b.size - a.size).slice(0, MAX_LABELS).forEach((node) => {
       const el = document.createElement('div');
-      el.className = 'region-label ocean-label';
+      el.className = `region-label ocean-label${isHub(node) ? ' hub' : ''}`;
       el.textContent = node.label;
       stage.appendChild(el);
       labels.push({ el, node });
@@ -332,6 +414,7 @@ export function createOcean({ stage, dpr, shared }) {
     nodes = graph.nodes;
     for (const o of [nodeObj, edgeObj, reflObj, dropObj]) if (o) { o.geometry.dispose(); group.remove(o); }
     pool.visible = !isEmpty;
+    decor.visible = !isEmpty;
     const counts = {};
     for (const it of items) counts[it.kind] = (counts[it.kind] || 0) + 1;
     const entityCount = graph.nodes.filter((x) => x.type === 'entity' && x.key.startsWith('e:')).length;
