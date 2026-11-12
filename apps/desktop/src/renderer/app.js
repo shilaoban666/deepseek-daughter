@@ -5,6 +5,7 @@ import { createWhale } from './whale3d.js';
 import { createPet } from './pet/index.js';
 import { NAV, DEFAULT_ROUTE, parseRoute, routes } from './nav-data.mjs';
 import { $, esc, fmtTime, fmtClock } from './util.js';
+import { mountCharts } from './views/charts.js';
 import * as overview from './views/overview.js';
 import * as mind from './views/mind.js';
 import * as us from './views/us.js';
@@ -105,6 +106,7 @@ function ensureBrain() {
       const cortex = await fish.cortex();
       brain = createBrain(canvas, cortex, { onHover, onPick });
       if (S.vitals) brain.setActivity(S.vitals.body.regions);
+      if (S.meta?.regions) brain.setRegionNames(Object.fromEntries(S.meta.regions.map((r) => [r.id, r.name])));
       pushMemories();
     } catch (err) {
       console.error(err);
@@ -237,6 +239,7 @@ function renderPage() {
   gl.park();
   try {
     VIEWS[route.view].render(page, route.tab, ctx);
+    mountCharts(page);
   } catch (err) {
     console.error(err);
     page.innerHTML = `<div class="empty">这个页面出错了：${esc(err.message)}</div>`;

@@ -479,3 +479,19 @@ test('通道：replyFrom 不接受空消息和没有通道名的调用', async (
   await assert.rejects(d.replyFrom({ text: '你好' }), /通道/);
   await assert.rejects(d.replyFrom({ text: '你好', channel: 'desktop' }), /通道/);
 });
+
+test('采样：各系统页的曲线要用的指标都记下来了，而且都是数', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dfy-sample-'));
+  try {
+    const d = new Daughter({ store: new JsonStore(dir), getSettings: () => ({}) });
+    d.sample();
+    const p = d.vitals[d.vitals.length - 1];
+    for (const k of ['satiety', 'energy', 'hr', 'rr', 'glucose', 'stomach', 'intestine', 'hydration', 'temp', 'bladder', 'insulin', 'glucagon', 'melatonin', 'dopamine', 'serotonin', 'ne', 'arousal', 'immunity', 'symp', 'para']) {
+      assert.ok(Number.isFinite(p[k]), `${k} = ${p[k]}`);
+    }
+    assert.ok(p.glucose > 2 && p.glucose < 10, '血糖的单位是 mmol/L');
+    assert.ok(p.temp > 35 && p.temp < 41, '体温的单位是摄氏度');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
