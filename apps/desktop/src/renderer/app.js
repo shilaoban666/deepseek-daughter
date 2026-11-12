@@ -106,6 +106,7 @@ function ensureBrain() {
       const cortex = await fish.cortex();
       brain = createBrain(canvas, cortex, { onHover, onPick });
       if (S.vitals) brain.setActivity(S.vitals.body.regions);
+      if (S.meta?.regions) brain.setRegionNames(Object.fromEntries(S.meta.regions.map((r) => [r.id, r.name])));
       pushMemories();
     } catch (err) {
       console.error(err);
