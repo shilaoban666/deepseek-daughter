@@ -39,10 +39,14 @@ function statusOf(p) {
 // ---------- 页面 ----------
 function card(p) {
   const st = statusOf(p);
-  return `<button class="plat-card" data-open="${esc(p.id)}" aria-label="${esc(p.name)}：${esc(st.text)}">
+  const soon = p.availability === 'soon';
+  const badge = st.preview ? '<span class="preview-badge">预览</span>' : `<span class="plat-badge ${p.status === 'saved' ? 'saved' : soon ? 'soon' : 'later'}">${p.status === 'saved' ? '✓ 设置好了' : soon ? '下一版开放' : esc(p.stage)}</span>`;
+  return `<button class="plat-card${soon ? ' feat' : ' later'}" data-open="${esc(p.id)}" style="--pc:${p.color}" aria-label="${esc(p.name)}：${esc(st.text)}">
     <span class="plat-mark" style="background:${p.color}">${esc(p.mark)}</span>
-    <span class="plat-body"><b>${esc(p.name)}</b><span class="plat-st st-${st.key}">${st.key === 'connecting' ? '<i class="dot"></i>' : ''}${esc(st.text)}</span><span class="dim sm">${esc(p.desc)}</span></span>
-    ${st.preview ? '<span class="preview-badge">预览</span>' : ''}
+    <span class="plat-body"><b>${esc(p.name)}</b><span class="plat-st st-${st.key}">${st.key === 'connecting' ? '<i class="dot"></i>' : ''}${esc(st.text)}</span><span class="dim sm">${esc(p.desc)}</span>
+      ${soon ? `<span class="plat-does">${p.does.slice(0, 3).map((x) => `<i>${esc(x)}</i>`).join('')}</span>` : ''}
+      <span class="plat-go">${p.status === 'saved' ? '查看设置' : soon ? '先把设置填好' : '看看她会做什么'} ›</span></span>
+    ${badge}
   </button>`;
 }
 
@@ -53,8 +57,11 @@ function page() {
   const group = (g, title) => `<div class="plat-group"><div class="plat-group-t">${title}</div><div class="plat-grid">${platforms.filter((p) => p.group === g).map(card).join('')}</div></div>`;
   return (
     lead('她能住进的地方', '这一期先把设置准备好，连接功能下一期开放') +
-    kernel.kernelLine(kernel.kernelStatus()) +
-    `<div class="plat-summary">已保存设置 ${saved} 个 · 即将开放 ${ready} 个 · 未开放 ${planned} 个</div>` +
+    `<div class="p plat-hero">
+      <div class="stats plat-stats"><div class="stat"><b class="ok">${saved}</b><span>设置好了</span></div><div class="stat"><b>${ready}</b><span>下一版开放</span></div><div class="stat"><b class="dim">${planned}</b><span>以后开放</span></div></div>
+      <div class="plat-road">${[['现在', '设置能填、能保存', 'done'], ['下一版 v0.4', 'QQ、微信接通', 'next'], ['阶段 4', 'B 站、小说', ''], ['阶段 5', '抖音、小红书、X、YouTube', '']].map(([t, d, c]) => `<div class="road-step ${c}"><i></i><b>${t}</b><span>${d}</span></div>`).join('')}</div>
+      <div class="plat-hero-foot">${kernel.kernelLine(kernel.kernelStatus())}<span class="dim sm">所有平台都经过内核和生命网关，她在哪里说话都是同一个她。</span></div>
+    </div>` +
     group('chat', '聊天') +
     group('content', '内容')
   );
