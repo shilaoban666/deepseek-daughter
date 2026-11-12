@@ -9,11 +9,14 @@
 [![Platform](https://img.shields.io/badge/Windows-%E5%8F%8C%E5%87%BB%E5%8D%B3%E7%94%A8-3ddc97?style=for-the-badge&labelColor=0b1b3a&logo=windows11&logoColor=white)](https://github.com/shilaoban666/deepseek-daughter/releases/latest)
 [![Stars](https://img.shields.io/github/stars/shilaoban666/deepseek-daughter?style=for-the-badge&color=f5c242&labelColor=0b1b3a)](https://github.com/shilaoban666/deepseek-daughter/stargazers)
 
-![Tests](https://img.shields.io/badge/%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95-172%20%E9%80%9A%E8%BF%87-3ddc97?style=flat-square&labelColor=0b1b3a)
+[![CI](https://img.shields.io/github/actions/workflow/status/shilaoban666/deepseek-daughter/ci.yml?branch=master&style=flat-square&labelColor=0b1b3a&label=%E8%87%AA%E5%8A%A8%E6%B5%8B%E8%AF%95)](https://github.com/shilaoban666/deepseek-daughter/actions/workflows/ci.yml)
+![Tests](https://img.shields.io/badge/%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95-174%20%E9%80%9A%E8%BF%87-3ddc97?style=flat-square&labelColor=0b1b3a)
 ![E2E](https://img.shields.io/badge/%E7%AB%AF%E5%88%B0%E7%AB%AF-8%20%E4%B8%AA%E5%9C%BA%E6%99%AF-3ddc97?style=flat-square&labelColor=0b1b3a)
 ![Recall](https://img.shields.io/badge/%E8%AE%B0%E5%BF%86%E5%8F%AC%E5%9B%9E%20recall%405-96.7%25-4fd6ff?style=flat-square&labelColor=0b1b3a)
 ![Electron](https://img.shields.io/badge/Electron-45-9feaf9?style=flat-square&labelColor=0b1b3a&logo=electron&logoColor=white)
 ![DeepSeek](https://img.shields.io/badge/DeepSeek-API-4d6bfe?style=flat-square&labelColor=0b1b3a)
+
+**简体中文** · **[English](README.en.md)**
 
 **[⬇️ 下载](https://github.com/shilaoban666/deepseek-daughter/releases/latest)** ·
 **[🚀 快速开始](#-快速开始)** ·
@@ -238,7 +241,7 @@ apps/desktop/
 
 ```bash
 cd apps/desktop
-npm test            # 172 个单元测试，不需要网络
+npm test            # 174 个单元测试，不需要网络
 npm run e2e         # 启动真实应用：25 个页面、聊天、身心闭环、内嵌内核、性能
 npm run eval        # 记忆召回评估集：recall@5、MRR、检索延迟
 npm run simulate    # 模拟时钟快进 7 天：吃饭、睡觉、想法分布、主动找人的克制
@@ -263,6 +266,8 @@ npm run simulate    # 模拟时钟快进 7 天：吃饭、睡觉、想法分布�
 | [更新记录](CHANGELOG.md) | 每个版本改了什么 |
 | [第三方许可](docs/第三方许可.md) | 随程序分发的每个第三方组件和素材 |
 | [参与开发](CONTRIBUTING.md) | 分支流程、提交前检查、素材和代码许可 |
+| [安全说明](SECURITY.md) | 怎么私下报告安全问题、现在的安全设计 |
+| [社区约定](CODE_OF_CONDUCT.md) | 在这里怎么相处 |
 
 <br>
 

@@ -1,0 +1,38 @@
+name: 测试
+
+on:
+  push:
+    branches: [dev, release, prod, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: 单元测试、记忆召回、7 天模拟
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    env:
+      # 这几项只用 Node 跑，不需要下载 Electron
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - run: npm ci
+      - name: 单元测试
+        run: npm test
+      - name: 记忆召回评估（recall@5 不低于 90%）
+        run: npm run eval:strict
+      - name: 7 天驱力模拟
+        run: npm run simulate
