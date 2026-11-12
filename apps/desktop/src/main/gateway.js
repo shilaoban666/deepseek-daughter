@@ -31,6 +31,12 @@ function createGateway({ daughter, log = () => {}, timeoutMs = 120000, channel =
   const recent = new Map(); // 去重：key → { at, promise }
   let lastError = null;
   let counts = { chat: 0, other: 0, unauthorized: 0, retries: 0 };
+  let startedAt = null;
+  const recentLog = []; // 最近 60 次请求 {at, kind, ms, ok, chars}。只有数字，没有内容
+  const record = (kind, since, ok = true, chars = 0) => {
+    recentLog.push({ at: now(), kind, ms: Math.max(0, now() - since), ok, chars });
+    if (recentLog.length > 60) recentLog.shift();
+  };
 
   function authorized(req) {
     const h = String(req.headers.authorization || '');
@@ -88,16 +94,20 @@ function createGateway({ daughter, log = () => {}, timeoutMs = 120000, channel =
     const seen = recent.get(key);
     if (seen) {
       counts.retries += 1;
+      const t0 = now();
       log('info', '同一句话的重试，直接给上次的结果');
       try {
         const r = await seen.promise;
+        record('retry', t0, true, (r.text || '').length);
         return respondWhole(res, body, r.text || EMPTY_REPLY);
       } catch (err) {
+        record('retry', t0, false);
         return sendJSON(res, 503, errorBody(err.message));
       }
     }
 
     counts.chat += 1;
+    const t0 = now();
     const id = `dfy-${crypto.randomBytes(6).toString('hex')}`;
     const model = body.model || 'deepseek-chat';
     const stream = !!body.stream;
@@ -129,6 +139,7 @@ function createGateway({ daughter, log = () => {}, timeoutMs = 120000, channel =
       const r = await Promise.race([promise, timeout]);
       const text = (r && r.text) || EMPTY_REPLY;
       lastError = null;
+      record('chat', t0, true, text.length);
       if (!stream) return respondWhole(res, body, text);
       begin();
       // 她的回复会 trim，流式送出去的片段可能多了首尾空白；没送出任何字（比如“累了”的固定回复）就整段补上
@@ -138,6 +149,7 @@ function createGateway({ daughter, log = () => {}, timeoutMs = 120000, channel =
       res.end('data: [DONE]\n\n');
     } catch (err) {
       lastError = err.message;
+      record('chat', t0, false);
       log('warn', `回复失败：${err.message}`);
       if (started) {
         // 已经开始流式输出了，没法再改状态码：把已经说出的部分正常收尾
@@ -153,6 +165,7 @@ function createGateway({ daughter, log = () => {}, timeoutMs = 120000, channel =
   function handle(req, res) {
     if (!authorized(req)) {
       counts.unauthorized += 1;
+      record('unauthorized', now(), false);
       return sendJSON(res, 401, errorBody('令牌不对', 'authentication_error'));
     }
     const path = (req.url || '').split('?')[0];
@@ -177,6 +190,7 @@ function createGateway({ daughter, log = () => {}, timeoutMs = 120000, channel =
       const parsed = parseRequest(body, req.headers);
       if (parsed.kind !== 'chat') {
         counts.other += 1;
+        record('other', now());
         log('info', `非聊天请求（${parsed.reason}），不打扰她`);
         return respondWhole(res, body, OTHER_REPLY);
       }
@@ -198,6 +212,7 @@ function createGateway({ daughter, log = () => {}, timeoutMs = 120000, channel =
         server.once('error', reject);
         server.listen(0, '127.0.0.1', () => {
           url = `http://127.0.0.1:${server.address().port}`;
+          startedAt = now();
           log('info', `生命网关已启动：${url}`);
           resolve({ url, token });
         });
@@ -216,7 +231,7 @@ function createGateway({ daughter, log = () => {}, timeoutMs = 120000, channel =
       });
     },
     address: () => server?.address() || null,
-    info: () => ({ url, running: !!server, lastError, counts: { ...counts } }),
+    info: () => ({ url, running: !!server, since: startedAt, lastError, counts: { ...counts }, recent: recentLog.map((x) => ({ ...x })) }),
   };
 }
 

@@ -29,27 +29,104 @@ const bob = 'vec3 bob(vec3 p){ p.y += sin(uTime * 0.6 + p.x * 1.3 + p.z * 1.7) *
 const nodeShader = {
   vertexShader: /* glsl */ `
     attribute vec3 aColor;
-    attribute float aSize, aIdx;
+    attribute float aSize, aIdx, aKind;
     uniform float uTime, uDpr, uHot;
     varying vec3 vColor;
-    varying float vHot;
+    varying float vHot, vKind, vTw;
     ${bob}
     void main() {
       vec4 mv = modelViewMatrix * vec4(bob(position), 1.0);
       gl_Position = projectionMatrix * mv;
       vHot = abs(aIdx - uHot) < 0.5 ? 1.0 : 0.0;
-      gl_PointSize = clamp(aSize * uDpr * 9.0 / max(1.0, -mv.z) * (1.0 + vHot * 0.6), 2.0, 90.0);
+      vKind = aKind;
+      // 每颗星按自己的节奏轻轻闪
+      vTw = 0.86 + 0.14 * sin(uTime * (1.1 + fract(aIdx * 0.37) * 1.4) + aIdx * 2.3);
+      // 枢纽和“自我”画大一点，给星芒和光环留地方
+      float room = aKind > 1.5 ? 2.3 : aKind > 0.5 ? 1.5 : 1.25;
+      gl_PointSize = clamp(aSize * room * uDpr * 9.0 / max(1.0, -mv.z) * (1.0 + vHot * 0.5), 2.0, 150.0);
+      vColor = aColor;
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform float uTime;
+    varying vec3 vColor;
+    varying float vHot, vKind, vTw;
+    void main() {
+      vec2 uv = gl_PointCoord - 0.5;
+      float room = vKind > 1.5 ? 2.3 : vKind > 0.5 ? 1.5 : 1.25;
+      float d = length(uv) * 2.0 * room; // 换回“星体半径 = 1”的尺度
+      float core = smoothstep(0.5, 0.22, d);
+      float glow = exp(-d * d * 3.2);
+      float halo = exp(-d * 1.6) * 0.22;
+      // 四道星芒，只有实体、枢纽和“自我”有
+      vec2 q = abs(uv) * room;
+      float flare = vKind > 0.5 ? (exp(-q.y * 42.0) * exp(-q.x * 3.6) + exp(-q.x * 42.0) * exp(-q.y * 3.6)) * 0.7 : 0.0;
+      // 枢纽外面一圈缓缓呼吸的光环
+      float ring = vKind > 1.5 ? smoothstep(0.07, 0.0, abs(d - (1.55 + 0.1 * sin(uTime * 1.3 + vColor.r * 6.0)))) * 0.42 : 0.0;
+      float a = max(max(core, glow * 0.6), max(flare, ring)) + halo;
+      if (a < 0.008) discard;
+      vec3 col = mix(vColor, vec3(1.7), core * 0.6) * (1.0 + vHot) * vTw;
+      gl_FragColor = vec4(col, min(a, 1.0));
+    }`,
+};
+
+// 节点在海面上的倒影：压扁、拉长、很淡，随波纹晃
+const reflShader = {
+  vertexShader: /* glsl */ `
+    attribute vec3 aColor;
+    attribute float aSize;
+    uniform float uTime, uDpr;
+    varying vec3 vColor;
+    void main() {
+      vec3 p = position;
+      p.y = -1.5 - (position.y + 1.5) * 0.12;
+      p.x += sin(uTime * 0.9 + position.z * 2.0) * 0.03;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = clamp(aSize * uDpr * 16.0 / max(1.0, -mv.z), 2.0, 120.0);
       vColor = aColor;
     }`,
   fragmentShader: /* glsl */ `
     varying vec3 vColor;
-    varying float vHot;
     void main() {
-      float d = length(gl_PointCoord - 0.5) * 2.0;
+      vec2 uv = (gl_PointCoord - 0.5) * 2.0;
+      float d = length(vec2(uv.x, uv.y * 2.6));
       if (d > 1.0) discard;
-      float core = smoothstep(0.55, 0.3, d);
-      float glow = exp(-d * d * 4.0);
-      gl_FragColor = vec4(mix(vColor, vec3(1.6), core * 0.55) * (1.0 + vHot), max(core, glow * 0.55));
+      gl_FragColor = vec4(vColor, exp(-d * d * 3.0) * 0.16);
+    }`,
+};
+
+// 从枢纽垂到海面的细线：让人看出它们是“漂在海上”的
+const dropShader = {
+  vertexShader: /* glsl */ `
+    attribute vec3 aColor;
+    attribute float aT;
+    uniform float uTime;
+    varying vec3 vColor;
+    varying float vT;
+    ${bob}
+    void main() {
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(aT < 0.5 ? bob(position) : position, 1.0);
+      vColor = aColor; vT = aT;
+    }`,
+  fragmentShader: /* glsl */ `
+    varying vec3 vColor;
+    varying float vT;
+    void main() { gl_FragColor = vec4(vColor, 0.2 * (1.0 - vT) * (1.0 - vT)); }`,
+};
+
+// 海面中央一片发光的水域，外加一圈圈往外走的涟漪
+const poolShader = {
+  vertexShader: /* glsl */ `
+    varying vec2 vP;
+    void main() { vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+    uniform float uTime;
+    varying vec2 vP;
+    void main() {
+      float r = length(vP);
+      float glow = exp(-r * r * 0.14) * 0.09;
+      float ripple = smoothstep(0.022, 0.0, abs(fract(r * 0.55 - uTime * 0.07) - 0.5)) * exp(-r * 0.45) * 0.2;
+      gl_FragColor = vec4(mix(vec3(0.08, 0.3, 0.75), vec3(0.3, 0.8, 1.0), ripple * 2.0), glow + ripple);
     }`,
 };
 
@@ -75,7 +152,7 @@ const edgeShader = {
       float head = fract(uTime * vSpeed + vPhase) * 1.6 - 0.3;
       float d = head - vAlong;
       float tail = (d >= 0.0 && d < 0.3) ? pow(1.0 - d / 0.3, 2.0) : 0.0;
-      float a = 0.11 + vHot * 0.55 + tail * 0.9 * uPower;
+      float a = 0.07 + 0.09 * abs(vAlong - 0.5) * 2.0 + vHot * 0.55 + tail * 0.9 * uPower;
       gl_FragColor = vec4(vColor * (1.0 + tail * 2.0), min(a, 1.0));
     }`,
 };
@@ -83,7 +160,7 @@ const edgeShader = {
 const seaShader = {
   vertexShader: /* glsl */ `
     uniform float uTime, uDpr;
-    varying float vA;
+    varying float vA, vCrest;
     void main() {
       vec3 p = position;
       float r = length(p.xz);
@@ -91,14 +168,18 @@ const seaShader = {
       vec4 mv = modelViewMatrix * vec4(p, 1.0);
       gl_Position = projectionMatrix * mv;
       gl_PointSize = max(1.0, 12.0 * uDpr / max(1.0, -mv.z));
-      vA = smoothstep(6.2, 1.5, r) * (0.28 + (p.y - position.y) * 2.2);
+      float ring = sin(r * 3.4 - uTime * 0.9);
+      p.y += ring * 0.03 * smoothstep(7.0, 0.5, r);
+      float crest = p.y - position.y;
+      vA = smoothstep(7.4, 1.5, r) * (0.26 + crest * 2.4);
+      vCrest = clamp(crest * 5.0 + 0.4, 0.0, 1.0);
     }`,
   fragmentShader: /* glsl */ `
-    varying float vA;
+    varying float vA, vCrest;
     void main() {
       float d = length(gl_PointCoord - 0.5) * 2.0;
       if (d > 1.0 || vA < 0.01) discard;
-      gl_FragColor = vec4(0.12, 0.55, 1.0, exp(-d * d * 3.0) * vA);
+      gl_FragColor = vec4(mix(vec3(0.07, 0.34, 0.95), vec3(0.35, 0.9, 1.0), vCrest), exp(-d * d * 3.0) * vA);
     }`,
 };
 
@@ -187,19 +268,34 @@ export function createOcean({ stage, dpr, shared }) {
   const additive = { transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending };
   const nodeMat = new THREE.ShaderMaterial({ ...nodeShader, uniforms, ...additive });
   const edgeMat = new THREE.ShaderMaterial({ ...edgeShader, uniforms, ...additive });
+  const reflMat = new THREE.ShaderMaterial({ ...reflShader, uniforms, ...additive });
+  const dropMat = new THREE.ShaderMaterial({ ...dropShader, uniforms, ...additive });
+  // 发光的水域只在有记忆时出现（空的意识海不能有大块亮光）
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(15, 15).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({ ...poolShader, uniforms, ...additive, side: THREE.DoubleSide }));
+  pool.position.y = -1.52;
+  pool.visible = false;
+  pool.renderOrder = 1;
+  group.add(pool);
 
   {
-    const n = 96, pos = new Float32Array(n * n * 3);
+    const n = 132, pos = new Float32Array(n * n * 3);
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
       const k = (i * n + j) * 3;
-      pos[k] = (i / (n - 1) - 0.5) * 13; pos[k + 1] = -1.5; pos[k + 2] = (j / (n - 1) - 0.5) * 13;
+      pos[k] = (i / (n - 1) - 0.5) * 15; pos[k + 1] = -1.5; pos[k + 2] = (j / (n - 1) - 0.5) * 15;
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     group.add(new THREE.Points(g, new THREE.ShaderMaterial({ ...seaShader, uniforms, ...additive })));
   }
 
-  let nodes = [], nodeObj = null, edgeObj = null, signature = '', labels = [], labelsOn = true;
+  let nodes = [], nodeObj = null, edgeObj = null, reflObj = null, dropObj = null, signature = '', labels = [], labelsOn = true;
+  // 左上角的图例：每一层是什么颜色、有多少条
+  const legend = document.createElement('div');
+  legend.className = 'ocean-legend';
+  legend.hidden = true;
+  stage.appendChild(legend);
+  const SEG = 14; // 每条连线分成几段画成弧
+  const A = new THREE.Vector3(), B = new THREE.Vector3(), M = new THREE.Vector3(), P = new THREE.Vector3();
   // 一条记忆都没有时不画节点，只显示一句提示（以前只剩“自我”一个点，会被缩放到角落变成一团白光）
   const emptyHint = document.createElement('div');
   emptyHint.className = 'ocean-empty';
@@ -234,37 +330,73 @@ export function createOcean({ stage, dpr, shared }) {
     const graph = isEmpty ? { nodes: [], edges: [] } : buildGraph(items);
     layout(graph.nodes, graph.edges);
     nodes = graph.nodes;
-    if (nodeObj) { nodeObj.geometry.dispose(); group.remove(nodeObj); }
-    if (edgeObj) { edgeObj.geometry.dispose(); group.remove(edgeObj); }
+    for (const o of [nodeObj, edgeObj, reflObj, dropObj]) if (o) { o.geometry.dispose(); group.remove(o); }
+    pool.visible = !isEmpty;
+    const counts = {};
+    for (const it of items) counts[it.kind] = (counts[it.kind] || 0) + 1;
+    const entityCount = graph.nodes.filter((x) => x.type === 'entity' && x.key.startsWith('e:')).length;
+    legend.innerHTML = `<b>${items.length} 段记忆</b><span>${entityCount} 个人和物 · ${graph.edges.length} 条联想</span>` +
+      Object.entries(LAYERS).filter(([k]) => counts[k]).map(([k, v]) => `<div><i style="background:${v.color};box-shadow:0 0 6px ${v.color}"></i>${v.name}<em>${counts[k]}</em></div>`).join('') +
+      `<div><i style="background:${ENTITY_COLOR};box-shadow:0 0 6px ${ENTITY_COLOR}"></i>提到的人和物<em>${entityCount}</em></div>`;
+    legend.hidden = !(group.visible && !isEmpty);
 
-    const np = new Float32Array(nodes.length * 3), nc = new Float32Array(nodes.length * 3), ns = new Float32Array(nodes.length), ni = new Float32Array(nodes.length);
+    const np = new Float32Array(nodes.length * 3), nc = new Float32Array(nodes.length * 3), ns = new Float32Array(nodes.length), ni = new Float32Array(nodes.length), nk = new Float32Array(nodes.length);
     nodes.forEach((node, i) => {
       node.pos.toArray(np, i * 3);
       color.set(node.color).toArray(nc, i * 3);
       ns[i] = node.size;
       ni[i] = i;
+      nk[i] = node.key === 'self' ? 3 : node.key.startsWith('hub:') ? 2 : node.type === 'entity' ? 1 : 0;
     });
     const ng = new THREE.BufferGeometry();
     ng.setAttribute('position', new THREE.BufferAttribute(np, 3));
     ng.setAttribute('aColor', new THREE.BufferAttribute(nc, 3));
     ng.setAttribute('aSize', new THREE.BufferAttribute(ns, 1));
     ng.setAttribute('aIdx', new THREE.BufferAttribute(ni, 1));
+    ng.setAttribute('aKind', new THREE.BufferAttribute(nk, 1));
     nodeObj = new THREE.Points(ng, nodeMat);
     nodeObj.renderOrder = 3;
     group.add(nodeObj);
+    reflObj = new THREE.Points(ng.clone(), reflMat);
+    reflObj.renderOrder = 1;
+    group.add(reflObj);
 
-    const m = graph.edges.length * 2;
+    // 枢纽、实体各垂一根细线到海面
+    const anchors = nodes.filter((x) => x.type === 'entity');
+    const dp = new Float32Array(anchors.length * 6), dc = new Float32Array(anchors.length * 6), dt = new Float32Array(anchors.length * 2);
+    anchors.forEach((node, i) => {
+      node.pos.toArray(dp, i * 6);
+      dp[i * 6 + 3] = node.pos.x; dp[i * 6 + 4] = -1.5; dp[i * 6 + 5] = node.pos.z;
+      color.set(node.color);
+      color.toArray(dc, i * 6); color.toArray(dc, i * 6 + 3);
+      dt[i * 2 + 1] = 1;
+    });
+    const dg = new THREE.BufferGeometry();
+    dg.setAttribute('position', new THREE.BufferAttribute(dp, 3));
+    dg.setAttribute('aColor', new THREE.BufferAttribute(dc, 3));
+    dg.setAttribute('aT', new THREE.BufferAttribute(dt, 1));
+    dropObj = new THREE.LineSegments(dg, dropMat);
+    dropObj.renderOrder = 1;
+    group.add(dropObj);
+
+    const m = graph.edges.length * SEG * 2;
     const ep = new Float32Array(m * 3), ec = new Float32Array(m * 3), ea = new Float32Array(m), ef = new Float32Array(m), es = new Float32Array(m), ee = new Float32Array(m * 2);
     graph.edges.forEach((e, i) => {
       const phase = hash(`${e.a}:${e.b}`), speed = 0.1 + hash(`${e.b}:${e.a}`) * 0.16;
       color.set(e.color);
-      [e.a, e.b].forEach((idx, end) => {
-        const v = i * 2 + end;
-        nodes[idx].pos.toArray(ep, v * 3);
+      A.copy(nodes[e.a].pos); B.copy(nodes[e.b].pos);
+      // 控制点往上抬一点，连线就成了一道弧
+      M.copy(A).add(B).multiplyScalar(0.5);
+      M.y += A.distanceTo(B) * (0.14 + phase * 0.1);
+      for (let k = 0; k < SEG; k++) for (let end = 0; end < 2; end++) {
+        const t = (k + end) / SEG, u = 1 - t;
+        const v = (i * SEG + k) * 2 + end;
+        P.set(u * u * A.x + 2 * u * t * M.x + t * t * B.x, u * u * A.y + 2 * u * t * M.y + t * t * B.y, u * u * A.z + 2 * u * t * M.z + t * t * B.z);
+        P.toArray(ep, v * 3);
         color.toArray(ec, v * 3);
-        ea[v] = end; ef[v] = phase; es[v] = speed;
+        ea[v] = t; ef[v] = phase; es[v] = speed;
         ee[v * 2] = e.a; ee[v * 2 + 1] = e.b;
-      });
+      }
     });
     const eg = new THREE.BufferGeometry();
     eg.setAttribute('position', new THREE.BufferAttribute(ep, 3));
@@ -285,6 +417,7 @@ export function createOcean({ stage, dpr, shared }) {
     setVisible(v) {
       group.visible = v;
       emptyHint.hidden = !(isEmpty && v);
+      legend.hidden = !(v && !isEmpty);
       if (v) buildLabels(); else clearLabels();
     },
     setLabels(on) {

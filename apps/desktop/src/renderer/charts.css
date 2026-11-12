@@ -247,3 +247,66 @@
 .stat.on { border-color: var(--cyan); background: rgba(79, 214, 255, .1); box-shadow: inset 0 0 12px rgba(79, 214, 255, .1); } .stat.on b { color: var(--cyan); } .g3.wide1 > .p:only-child { grid-column: 1 / -1; }
 .g2.w64 { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
 .split .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* 「我们」的时间轴 */
+.tl { position: relative; padding-left: 22px; }
+.tl::before { content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: linear-gradient(180deg, var(--line2), transparent); }
+.tl-month { position: relative; margin: 14px 0 6px; font: 500 12px var(--mono); color: var(--dim); letter-spacing: 1px; }
+.tl-month:first-child { margin-top: 0; }
+.tl-month::before { content: ''; position: absolute; left: -20px; top: 5px; width: 10px; height: 2px; background: var(--line2); }
+.tl-item { position: relative; display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 6px 0; }
+.tl-item > i { position: absolute; left: -21px; top: 11px; width: 10px; height: 10px; border-radius: 50%; background: #0b1426; border: 2px solid var(--c); }
+.tl-item.key > i { background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent), 0 0 10px var(--c); }
+.tl-item time { font: 12px var(--mono); color: var(--dim); }
+.tl-item b { font-weight: 400; }
+.tl-item.key b { font-weight: 500; font-size: 14.5px; }
+.tl-item div span { display: block; font-size: 12px; color: var(--dim); }
+.tl-item em { font-style: normal; font-size: 11px; padding: 0 8px; border-radius: 9px; color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); white-space: nowrap; }
+.tl-filter { margin-bottom: 10px; }
+.tl-filter .chip i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c); margin-right: 5px; }
+.cd { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.cd-item { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(239, 111, 142, .05); }
+.cd-item:first-child { border-color: rgba(239, 111, 142, .45); box-shadow: inset 0 0 18px rgba(239, 111, 142, .08); }
+.cd-item b { font: 500 28px/1.1 var(--mono); color: var(--pink); }
+.cd-item small { margin-left: 4px; color: var(--dim); }
+.cd-item span { display: block; margin-top: 2px; }
+.cd-item em { display: block; font-style: normal; font: 11px var(--mono); color: var(--faint); margin-top: 2px; }
+.an-form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; }
+.an-form input { background: rgba(127, 178, 255, 0.06); border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; color: var(--text); font: inherit; outline: 0; min-width: 0; color-scheme: dark; }
+.an-form input:focus { border-color: var(--cyan); }
+
+/* 内核页 */
+.k-dash { display: grid; gap: 12px; }
+.k-dash .k-grid { margin-bottom: 0; }
+.kp-node { fill: rgba(11, 20, 38, .9); stroke: var(--line2); stroke-width: 1.2; }
+.kp-node.on { stroke: rgba(79, 214, 255, .55); }
+.kp-node.bad { stroke: var(--pink); }
+.kp-dot { fill: var(--faint); }
+.kp-dot.on { fill: var(--green); }
+.kp-dot.bad { fill: var(--pink); }
+.kp-title { font: 500 14px var(--sans); fill: var(--text); }
+.kp-sub { font: 11.5px var(--sans); fill: var(--cyan); }
+.kp-note { font: 10.5px var(--sans); fill: var(--dim); }
+.kp-flow { fill: none; stroke: var(--faint); stroke-width: 1.6; stroke-dasharray: 4 5; }
+.kp-flow.on { stroke: var(--cyan); animation: ogflow 1s linear infinite; }
+.kp-head { fill: none; stroke: var(--faint); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.kp-head.on { stroke: var(--cyan); }
+.kp-back { fill: none; stroke: var(--violet); stroke-width: 1.3; stroke-dasharray: 3 4; opacity: .7; }
+.kp-backhead { fill: none; stroke: var(--violet); stroke-width: 1.6; stroke-linecap: round; }
+.k-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.k-stats .stat b { font-family: var(--mono); }
+.k-safe > div { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 0 8px; padding: 5px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+.k-safe > div:first-child { border-top: 0; }
+.k-safe i { font-style: normal; grid-row: span 2; }
+.k-safe em { font-style: normal; font-size: 11px; color: var(--faint); grid-column: 2; overflow-wrap: anywhere; }
+.k-role { font-size: 11.5px; color: var(--dim); margin: 1px 0 4px; }
+@media (prefers-reduced-motion: reduce) { .kp-flow.on { animation: none; } }
+
+/* 意识海的图例 */
+.ocean-legend { position: absolute; left: 14px; top: 14px; z-index: 2; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: rgba(6, 12, 26, .62); backdrop-filter: blur(6px); font-size: 12px; color: var(--dim); pointer-events: none; min-width: 150px; }
+.ocean-legend b { display: block; font: 500 15px var(--sans); color: var(--text); }
+.ocean-legend span { display: block; margin-bottom: 6px; font-size: 11px; color: var(--faint); }
+.ocean-legend div { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+.ocean-legend i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.ocean-legend em { margin-left: auto; font: normal 11px var(--mono); color: var(--text); }
+.immersive .ocean-legend { display: none; }
