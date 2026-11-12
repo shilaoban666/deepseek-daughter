@@ -328,3 +328,72 @@
 .brain-active u i { display: block; height: 100%; background: linear-gradient(90deg, rgba(255, 210, 122, .4), #ffd27a); transition: width .5s; }
 .immersive .brain-active { display: none; }
 .ocean-label.hub { font-size: 12px; color: #fff; border-left-color: rgba(255, 255, 255, .8); background: rgba(6, 12, 26, .55); }
+
+/* 平台插件页 */
+.plat-hero { display: grid; gap: 14px; }
+.plat-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.plat-stats .stat b { font: 500 26px/1.2 var(--mono); }
+.plat-road { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); position: relative; }
+.plat-road::before { content: ''; position: absolute; left: 6px; right: 12%; top: 6px; height: 2px; background: linear-gradient(90deg, var(--green), var(--cyan) 30%, var(--line2) 55%, transparent); }
+.road-step { position: relative; padding: 20px 12px 0 0; }
+.road-step i { position: absolute; left: 0; top: 0; width: 14px; height: 14px; border-radius: 50%; background: #0b1426; border: 2px solid var(--faint); }
+.road-step.done i { background: var(--green); border-color: var(--green); box-shadow: 0 0 10px var(--green); }
+.road-step.next i { border-color: var(--cyan); box-shadow: 0 0 0 4px rgba(79, 214, 255, .18); animation: blink 1.6s infinite; }
+.road-step b { display: block; font-weight: 500; font-size: 13px; }
+.road-step.next b { color: var(--cyan); }
+.road-step span { font-size: 12px; color: var(--dim); }
+.plat-hero-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.plat-hero-foot .kernel-line { margin: 0; }
+.plat-group-t { display: flex; align-items: center; gap: 10px; color: var(--text); letter-spacing: 3px; }
+.plat-group-t::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line2), transparent); }
+.plat-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.plat-card { overflow: hidden; padding: 14px 14px 12px; border-radius: 10px; transition: transform .15s, border-color .15s, box-shadow .15s; }
+.plat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--pc); opacity: .85; }
+.plat-card::after { content: ''; position: absolute; right: -40px; top: -40px; width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--pc) 22%, transparent), transparent 70%); pointer-events: none; }
+.plat-card:hover, .plat-card:focus-visible { transform: translateY(-2px); border-color: color-mix(in srgb, var(--pc) 60%, transparent); box-shadow: 0 8px 22px rgba(0, 0, 0, .35), 0 0 0 1px color-mix(in srgb, var(--pc) 25%, transparent); background: var(--panel); }
+.plat-card.feat { min-height: 170px; }
+.plat-card.later { opacity: .82; border-style: dashed; }
+.plat-card.later:hover { opacity: 1; }
+.plat-card.later .plat-mark { filter: saturate(.6); }
+.plat-mark { width: 40px; height: 40px; border-radius: 10px; font-size: 16px; box-shadow: 0 4px 12px color-mix(in srgb, var(--pc, #000) 35%, transparent); }
+.plat-body { gap: 3px; flex: 1; }
+.plat-body b { font-size: 15px; }
+.plat-does { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.plat-does i { font-style: normal; font-size: 11px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--line2); color: var(--blue); }
+.plat-go { margin-top: 8px; font-size: 12px; color: var(--cyan); opacity: .75; }
+.plat-card:hover .plat-go { opacity: 1; }
+.plat-badge { position: absolute; top: 10px; right: 10px; z-index: 1; font-size: 10.5px; padding: 1px 8px; border-radius: 9px; white-space: nowrap; }
+.plat-badge.soon { color: var(--cyan); border: 1px solid rgba(79, 214, 255, .45); background: rgba(79, 214, 255, .08); }
+.plat-badge.saved { color: var(--green); border: 1px solid rgba(61, 220, 151, .5); background: rgba(61, 220, 151, .1); }
+.plat-badge.later { color: var(--faint); border: 1px dashed var(--line2); }
+
+/* 设置页 */
+.set-start { display: grid; gap: 10px; border-color: rgba(79, 214, 255, .3); background: linear-gradient(90deg, rgba(79, 214, 255, .07), transparent 70%), var(--panel); }
+.set-start.all { border-color: rgba(61, 220, 151, .35); background: linear-gradient(90deg, rgba(61, 220, 151, .07), transparent 70%), var(--panel); }
+.set-start-t { display: flex; align-items: baseline; gap: 10px; }
+.set-start-t b { font-size: 16px; font-weight: 500; }
+.set-start-t span { font: 12px var(--mono); color: var(--dim); }
+.set-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.set-step { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.set-step i { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: normal 12px var(--mono); border: 1px solid var(--line2); color: var(--dim); }
+.set-step.ok { border-color: rgba(61, 220, 151, .35); }
+.set-step.ok i { background: var(--green); border-color: var(--green); color: #04130c; font-weight: 700; }
+.set-step b { display: block; font-weight: 500; }
+.set-step span { font-size: 11.5px; color: var(--dim); }
+.set-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.set-grid .card { border-radius: 10px; padding: 16px 18px; }
+.set-grid .card::before, .set-grid .card::after { display: none; }
+.set-grid .plat-icon { width: 40px; height: 40px; border-radius: 10px; }
+.set-grid .plat-head b { font-size: 15px; }
+.set-grid .field input, .set-grid .field select { font: 13px var(--sans); padding: 9px 11px; border-radius: 6px; transition: border-color .15s, box-shadow .15s; }
+.set-grid .field input:focus, .set-grid .field select:focus { box-shadow: 0 0 0 3px rgba(79, 214, 255, .14); }
+.set-grid #lk-key { font-family: var(--mono); letter-spacing: 1px; }
+.set-grid .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.set-grid .stat b { font: 500 18px/1.3 var(--mono); }
+.set-ver { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)) !important; }
+.set-ver .stat b { font-size: 13px; white-space: nowrap; }
+.set-usage { display: grid; gap: 10px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.set-meter .h { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); }
+.set-meter .h b { font: 500 13px var(--mono); color: var(--text); }
+.set-grid .status { padding: 3px 10px; }
+@media (max-width: 1180px) { .set-grid, .set-steps, .plat-road { grid-template-columns: minmax(0, 1fr); } .plat-road::before { display: none; } }
