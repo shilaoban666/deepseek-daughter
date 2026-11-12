@@ -179,6 +179,8 @@ class Daughter extends EventEmitter {
     return {
       slang: this.slang,
       anniversaries: anniversary.upcoming(items, now, 366),
+      firstAt: first,
+      dates: items.map((x) => ({ id: x.id, title: x.title, date: x.date, auto: !!x.auto })),
       relation: anniversary.relation({
         days: this.daysWithHer(),
         messages: this.history.filter((m) => m.role === 'user').length,
