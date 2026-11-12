@@ -55,23 +55,25 @@ function strandShader(n) {
       attribute float aAlong;
       attribute float aSeed;
       ${regionGlsl(n)}
-      varying float vAlong, vSeed, vBoost;
+      varying float vAlong, vSeed, vBoost, vHot;
       void main() {
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vAlong = aAlong; vSeed = aSeed;
         float h = activation();
-        vBoost = (1.0 + h * h * 1.6 + thoughtWave(position.x) * 1.4) * clamp(1.9 + mv.z * 0.13, 0.35, 1.0);
+        vBoost = (0.7 + h * h * 3.4 + thoughtWave(position.x) * 1.2) * clamp(1.9 + mv.z * 0.13, 0.35, 1.0);
+        vHot = h;
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */ `
       uniform float uTime, uPower;
       uniform vec3 uColor;
-      varying float vAlong, vSeed, vBoost;
+      varying float vAlong, vSeed, vBoost, vHot;
       void main() {
         float wave = fract(vAlong * 0.65 - uTime * (0.08 + vSeed * 0.045) + vSeed);
         float pulse = pow(max(0.0, 1.0 - abs(wave - 0.5) * 8.0), 6.0);
         float tip = pow(max(0.0, sin(vAlong * 3.14159)), 0.35);
         vec3 color = vSeed > 0.96 ? vec3(0.015, 0.74, 1.3) : uColor;
+        color = mix(color, vec3(1.5, 1.35, 1.1), vHot * vHot * 0.5); // 活跃的地方烧成暖白色
         float opacity = (0.018 + pulse * 0.19) * (0.35 + tip * 0.65) * uPower * vBoost;
         gl_FragColor = vec4(color * (1.1 + pulse * 1.2), opacity);
       }`,
@@ -92,9 +94,9 @@ function pointShader(n) {
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         gl_Position = projectionMatrix * mv;
         float h = activation();
-        gl_PointSize = clamp(aSize * uDpr * 9.0 / max(1.0, -mv.z), 1.0, 24.0);
-        vColor = aColor;
-        vAlpha = aAlpha * uPower * (1.0 + h * h * 1.1 + thoughtWave(position.x));
+        gl_PointSize = clamp(aSize * (1.0 + h * 0.8) * uDpr * 9.0 / max(1.0, -mv.z), 1.0, 28.0);
+        vColor = mix(aColor, vec3(1.6, 1.45, 1.15), h * h * 0.6);
+        vAlpha = aAlpha * uPower * (0.72 + h * h * 2.8 + thoughtWave(position.x));
       }`,
     fragmentShader: /* glsl */ `
       varying vec3 vColor;
@@ -121,7 +123,7 @@ const auraShader = {
     varying vec3 vN, vV;
     void main() {
       float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.4);
-      gl_FragColor = vec4(mix(uColor, vec3(0.1, 0.7, 1.0), 0.25) * (0.5 + rim), rim * 0.06);
+      gl_FragColor = vec4(mix(uColor, vec3(0.1, 0.7, 1.0), 0.25) * (0.5 + rim), rim * 0.095);
     }`,
 };
 
@@ -186,6 +188,42 @@ function glowTexture() {
   return t;
 }
 
+function ringTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.strokeStyle = '#fff';
+  g.lineWidth = 5;
+  g.shadowColor = '#fff';
+  g.shadowBlur = 10;
+  g.beginPath();
+  g.arc(64, 64, 48, 0, Math.PI * 2);
+  g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// 大脑下面的全息底座：几圈细环加一圈慢慢转的刻度
+const deckShader = {
+  vertexShader: 'varying vec2 vP; void main() { vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: /* glsl */ `
+    uniform float uTime, uPower;
+    varying vec2 vP;
+    float ring(float r, float at, float w) { return smoothstep(w, 0.0, abs(r - at)); }
+    void main() {
+      float r = length(vP);
+      float a = atan(vP.y, vP.x);
+      float rings = ring(r, 2.5, 0.012) * 0.9 + ring(r, 2.05, 0.008) * 0.5 + ring(r, 1.3, 0.008) * 0.35;
+      float ticks = step(0.72, fract((a + uTime * 0.05) * 28.65)) * smoothstep(0.05, 0.0, abs(r - 2.3) - 0.05) * 0.55;
+      float sweep = pow(max(0.0, cos(a - uTime * 0.35)), 24.0) * smoothstep(2.5, 0.4, r) * step(r, 2.5) * 0.22;
+      float glow = exp(-r * r * 0.5) * 0.1;
+      float al = (rings + ticks + sweep + glow) * (0.55 + uPower * 0.3);
+      if (al < 0.004) discard;
+      gl_FragColor = vec4(vec3(0.25, 0.75, 1.0), al * 0.55);
+    }`,
+};
+
 // 脑区在模型空间的大致位置（标在左半球 +y 一侧）。坐标按真实皮层的尺寸：前后 ±1.8，左右 ±1.45，上下 ±1.28
 const REGION_POS = {
   prefrontal: [1.4, 0.72, 0.55],
@@ -232,6 +270,7 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
   composer.addPass(new OutputPass());
 
   const tex = glowTexture();
+  const ringTex = ringTexture();
 
   // 背景星点
   {
@@ -378,6 +417,12 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
     brain.add(haze);
   }
 
+  // 全息底座，跟着 pivot 一起转
+  const deck = new THREE.Mesh(new THREE.PlaneGeometry(5.4, 5.4).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({ ...deckShader, uniforms: { uTime: shared.uTime, uPower: shared.uPower }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+  deck.position.y = -1.62;
+  deck.renderOrder = -3;
+  pivot.add(deck);
+
   // ---------- 消息信号 ----------
   function createFlow(max, size, depthTest) {
     const pos = new Float32Array(max * 3), col = new Float32Array(max * 3);
@@ -480,7 +525,31 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
     sp.position.set(p[0], p[1], p[2]);
     sp.scale.setScalar(0.16);
     nodeGroup.add(sp);
-    regionNodes[id] = { sprite: sp, act: 0.2, target: 0.2 };
+    // 不在中线上的脑区左右各一个，右半球的那个是镜像
+    const sprites = [sp];
+    if (Math.abs(p[1]) > 0.3) {
+      const mirror = new THREE.Sprite(mat);
+      mirror.position.set(p[0], -p[1], p[2]);
+      nodeGroup.add(mirror);
+      sprites.push(mirror);
+    }
+    const rings = sprites.map((s) => {
+      const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTex, color: 0xfff1c9, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+      ring.position.copy(s.position);
+      nodeGroup.add(ring);
+      return ring;
+    });
+    regionNodes[id] = { sprite: sp, sprites, rings, act: 0.2, target: 0.2, shown: 0 };
+  }
+  /** 一个脑区在屏幕上的位置：左右两个里取朝着镜头的那个 */
+  const sideScreen = { x: 0, y: 0, z: 0 };
+  function regionScreen(id) {
+    let best = null;
+    for (const s of regionNodes[id].sprites) {
+      const q = project(s.position);
+      if (!best || q.z < best.z) best = { x: q.x, y: q.y, z: q.z };
+    }
+    return Object.assign(sideScreen, best);
   }
   const regionCurve = (a, b) => {
     const pa = regionNodes[a].sprite.position, pb = regionNodes[b].sprite.position;
@@ -599,6 +668,46 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
   const facing = new THREE.Vector3(), toCamera = new THREE.Vector3();
   const labels = [];
 
+  // 现在最活跃的三个脑区：在大脑上直接标出来，左上角再列一遍
+  const stageEl = canvas.parentElement;
+  let regionNames = {};
+  const callouts = [0, 1, 2].map(() => {
+    const el = document.createElement('div');
+    el.className = 'region-callout';
+    el.hidden = true;
+    stageEl.appendChild(el);
+    return { el, id: null, pct: -1 };
+  });
+  const hud = document.createElement('div');
+  hud.className = 'brain-active';
+  hud.hidden = true;
+  stageEl.appendChild(hud);
+  let hudAt = 0;
+  function updateCallouts(now) {
+    const on = mode === 'brain' && Object.keys(regionNames).length > 0;
+    hud.hidden = !on;
+    if (!on) { for (const c of callouts) c.el.hidden = true; return; }
+    const ranked = REGION_IDS.map((id) => ({ id, act: regionNodes[id].act })).sort((a, b) => b.act - a.act).slice(0, 3);
+    callouts.forEach((c, i) => {
+      const r = ranked[i];
+      // 开了“显示标注”时所有脑区都有名字，就不再重复标
+      c.el.hidden = labels.length > 0 || (focused && !focused.has(r.id));
+      if (c.el.hidden) return;
+      const pct = Math.round(r.act * 100);
+      if (c.id !== r.id || c.pct !== pct) {
+        c.id = r.id; c.pct = pct;
+        c.el.innerHTML = `<i></i><b>${regionNames[r.id] || r.id}</b><span>${pct}%</span>`;
+        c.el.classList.toggle('first', i === 0);
+      }
+      const s = regionScreen(r.id);
+      c.el.style.transform = `translate(${Math.round(s.x + 14)}px, ${Math.round(s.y - 30)}px)`;
+    });
+    if (now - hudAt > 500) {
+      hudAt = now;
+      hud.innerHTML = `<b>现在最活跃</b>${ranked.map((r) => `<div><span>${regionNames[r.id] || r.id}</span><em>${Math.round(r.act * 100)}%</em><u><i style="width:${Math.round(r.act * 100)}%"></i></u></div>`).join('')}`;
+    }
+  }
+
   const project = (v) => projectFrom(brain, v);
   function projectFrom(obj, v) {
     proj.copy(v).applyMatrix4(obj.matrixWorld).project(camera);
@@ -650,15 +759,29 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
     shared.uWave.value = -2.4 + ((t * (0.35 + activity * 0.6)) % 1) * 5.2;
 
     // 节点
+    // 谁比平均活跃得多，谁就亮：这样一眼能看出现在是哪几块在工作
+    let mean = 0, top = 0;
+    for (const id of REGION_IDS) { mean += regionNodes[id].act; top = Math.max(top, regionNodes[id].act); }
+    mean /= REGION_IDS.length;
+    const floor = mean * 0.85, span = Math.max(0.12, top - floor);
     REGION_IDS.forEach((id, i) => {
       const n = regionNodes[id];
       n.act += (n.target - n.act) * Math.min(1, dt * 3);
+      n.shown = Math.pow(Math.min(1, Math.max(0, (n.act - floor) / span)), 1.4);
       const pulse = 1 + Math.sin(t * 3 + n.sprite.position.x * 5) * 0.08;
       const dim = focused && !focused.has(id) ? 0.15 : 1;
       const big = focused?.has(id) ? 1.8 : 1;
-      n.sprite.scale.setScalar((0.06 + n.act * 0.16) * pulse * big);
-      n.sprite.material.opacity = (0.2 + n.act * 0.55) * dim + (big > 1 ? 0.3 : 0);
-      shared.uRegionAct.value[i] = n.act;
+      const scale = (0.06 + n.act * 0.1 + n.shown * 0.12) * pulse * big;
+      for (const s of n.sprites) s.scale.setScalar(scale);
+      n.sprite.material.opacity = (0.16 + n.shown * 0.7) * dim + (big > 1 ? 0.3 : 0);
+      n.sprite.material.color.setHex(n.shown > 0.5 ? 0xfff1c9 : 0x7fe3ff);
+      // 活跃的脑区往外扩散一圈圈的环
+      const f = (t * 0.55 + i * 0.37) % 1;
+      for (const ring of n.rings) {
+        ring.scale.setScalar(0.12 + f * 0.62);
+        ring.material.opacity = n.shown > 0.4 ? (1 - f) * (1 - f) * n.shown * 0.85 * dim : 0;
+      }
+      shared.uRegionAct.value[i] = focused && !focused.has(id) ? n.shown * 0.25 : Math.max(n.shown, focused?.has(id) ? 0.7 : 0);
     });
 
     // 信号
@@ -674,8 +797,8 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
       ocean.updateLabels((v) => projectFrom(ocean.group, v));
     } else if (mouse.inside && !dragging) {
       let best = null, bd = 14;
-      for (const [id, n] of Object.entries(regionNodes)) {
-        const s = project(n.sprite.position);
+      for (const id of REGION_IDS) {
+        const s = regionScreen(id);
         const d = Math.hypot(s.x - mouse.x, s.y - mouse.y);
         if (d < bd) { bd = d; best = { type: 'region', id, x: s.x, y: s.y }; }
       }
@@ -696,10 +819,12 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
     // 标注
     if (labels.length) {
       for (const lb of labels) {
-        const s = project(regionNodes[lb.id].sprite.position);
+        const s = regionScreen(lb.id);
         lb.el.style.transform = `translate(${s.x + 10}px, ${s.y - 8}px)`;
+        lb.el.classList.toggle('hot', regionNodes[lb.id].shown > 0.5);
       }
     }
+    updateCallouts(now);
 
     composer.render();
   }
@@ -724,6 +849,7 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
     setMode(m) {
       mode = m;
       brain.visible = m === 'brain';
+      deck.visible = m === 'brain';
       ocean.setVisible(m === 'ocean');
       lastHover = null;
       onHover?.(null);
@@ -741,6 +867,7 @@ export function createBrain(canvas, cortex, { onHover, onPick } = {}) {
         }, i * 380);
       });
     },
+    setRegionNames(names) { regionNames = names || {}; },
     setSpin: (v) => (spin = v),
     setFlow: (v) => (flowing = v),
     reset() {

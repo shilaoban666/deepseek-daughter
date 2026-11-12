@@ -16,7 +16,8 @@ function aboutCard(v, petSkin) {
   return `<div class="card plat" id="about">
       <div class="plat-head"><div class="plat-icon" style="background:linear-gradient(135deg,#4fd6ff,#2a3fb0)">i</div>
         <div><b>关于</b><small>大肥鱼 ${esc(v.app)}</small></div></div>
-      <p class="mono">Electron ${esc(v.electron)} · Node ${esc(v.node)} · Chromium ${esc(v.chrome)}</p>
+      <div class="stats set-ver"><div class="stat"><b>${esc(v.app)}</b><span>大肥鱼</span></div><div class="stat"><b>${esc(v.electron)}</b><span>Electron</span></div><div class="stat"><b>${esc(v.node)}</b><span>Node</span></div><div class="stat"><b>${esc(String(v.chrome).split('.')[0])}</b><span>Chromium</span></div>${v.dsh ? `<div class="stat"><b>${esc(v.dsh)}</b><span>DSH 内核</span></div>` : ''}</div>
+      <p class="mono faint sm">Electron ${esc(v.electron)} · Node ${esc(v.node)} · Chromium ${esc(v.chrome)}</p>
       ${pet}
       <p>大脑皮层网格：Anderson Winkler，Brain for Blender，CC BY-SA 3.0。</p>
       ${v.dsh ? `<p>内核：DeepSeek Harness ${esc(v.dsh)}，BSD-3-Clause，Copyright (c) 2026 DeepSeek。各组件的许可证原文随程序一起分发；完整清单见项目仓库的 docs/第三方许可.md。</p>` : ''}
@@ -33,9 +34,21 @@ export function renderLinks(root, S, actions) {
   else if (st.hasKey && bal?.error) status = `<span class="status err">${esc(bal.error)}</span>`;
   else if (st.hasKey) status = '<span class="status">已填写，检查中…</span>';
   const modelKnown = MODELS.some(([v]) => v === st.model);
+  const u = S.vitals?.usageToday || { prompt: 0, completion: 0, calls: 0 };
+  const budget = S.vitals?.budget || { ratio: 0, used: 0, limit: 0 };
+  const pct = Math.round(Math.min(1, budget.ratio || 0) * 100);
+  const named = !!(st.userName || st.userTitle);
+  const talked = (S.history || []).some((m) => m.role === 'user');
+  const steps = [[st.hasKey, '填上 DeepSeek Key', '她才能思考和说话'], [named, '告诉她你是谁', '名字和她怎么叫你'], [talked, '跟她说第一句话', '在右边的聊天栏']];
+  const done = steps.filter((x) => x[0]).length;
 
   root.innerHTML = `
     
+    <div class="p set-start${done === 3 ? ' all' : ''}">
+      <div class="set-start-t"><b>${done === 3 ? '都准备好了' : '三步开始'}</b><span>${done} / 3</span></div>
+      <div class="set-steps">${steps.map(([ok, t, d], i) => `<div class="set-step${ok ? ' ok' : ''}"><i>${ok ? '✓' : i + 1}</i><div><b>${t}</b><span>${d}</span></div></div>`).join('')}</div>
+    </div>
+    <div class="set-grid">
     <div class="card plat">
       <div class="plat-head"><div class="plat-icon" style="background:linear-gradient(135deg,#4d6bfe,#2a3fb0)">D</div>
         <div><b>DeepSeek</b><small>她的大脑 · 每次思考都会调用</small></div>${status}</div>
@@ -50,7 +63,9 @@ export function renderLinks(root, S, actions) {
         <button class="ghost" id="lk-refresh" ${st.hasKey ? '' : 'disabled'}>刷新余额</button>
         <button class="link" id="lk-get">去 DeepSeek 开放平台获取 Key</button>
       </div>
-      <p>Key 只保存在这台电脑上，用系统加密；只会发给 DeepSeek。</p>
+      <p>🔒 Key 只保存在这台电脑上，用系统加密；只会发给 DeepSeek。</p>
+      <div class="set-usage"><div class="set-meter"><div class="h"><span>今天的饭钱用了</span><b>${pct}%</b></div><div class="tr"><i style="width:${pct}%"></i></div></div>
+        <div class="stats"><div class="stat"><b>${bal && !bal.error ? `¥${bal.total.toFixed(2)}` : '—'}</b><span>余额</span></div><div class="stat"><b>${u.calls}</b><span>今天调用</span></div><div class="stat"><b>${((u.prompt + u.completion) / 1000).toFixed(1)}k</b><span>今天的 Token</span></div></div></div>
     </div>
 
     <div class="card plat">
@@ -65,6 +80,7 @@ export function renderLinks(root, S, actions) {
     <div class="card plat">
       <div class="plat-head"><div class="plat-icon" style="background:linear-gradient(135deg,#a98bff,#4d6bfe)">记</div>
         <div><b>记忆与备份</b><small>${mem.active || 0} 条在记着 · ${mem.archived || 0} 条归档 · ${mem.conflicts || 0} 条待求证</small></div></div>
+      <div class="stats"><div class="stat"><b>${mem.active || 0}</b><span>在记着</span></div><div class="stat"><b>${mem.archived || 0}</b><span>归档</span></div><div class="stat"><b class="${mem.conflicts ? 'warn' : ''}">${mem.conflicts || 0}</b><span>待求证</span></div></div>
       <p>她每晚睡觉时会回放当天、提炼事实、写日记、微调性格；六层记忆和每天一次的备份都只存在这台电脑上。</p>
       <div class="row">
         <button class="ghost" id="lk-consolidate">现在整理一次</button>
@@ -73,7 +89,8 @@ export function renderLinks(root, S, actions) {
       </div>
       ${backups && backups.length ? `<ul class="intake-list">${backups.map((b) => `<li><span class="mono">${esc(b.day)}</span><span>${b.files} 个文件</span><b>${(b.bytes / 1024).toFixed(1)} KB</b></li>`).join('')}</ul>` : ''}
     </div>
-    ${aboutCard(S.versions, S.petSkin)}`;
+    ${aboutCard(S.versions, S.petSkin)}
+    </div>`;
 
   const q = (s) => root.querySelector(s);
   q('#lk-save').addEventListener('click', () => {

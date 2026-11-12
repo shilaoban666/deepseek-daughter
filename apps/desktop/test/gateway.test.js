@@ -186,3 +186,23 @@ test('网关：她“累了”的固定回复也能完整送回去', async () =>
     assert.equal(r.text, '我今天好累，先睡了。');
   });
 });
+
+test('生命网关：记下最近请求的种类和耗时，不记内容', async () => {
+  const gw = createGateway({ daughter: { replyFrom: async () => ({ text: '嗯嗯' }) } });
+  const { url, token } = await gw.start();
+  try {
+    const post = (auth, body) => fetch(`${url}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth}` }, body: JSON.stringify(body) });
+    await (await post(token, { messages: [{ role: 'user', content: '一句只说给她听的话' }] })).text();
+    await (await post('wrong', { messages: [{ role: 'user', content: 'x' }] })).text();
+    const info = gw.info();
+    assert.deepEqual(info.recent.map((r) => r.kind), ['chat', 'unauthorized']);
+    assert.equal(info.recent[0].ok, true);
+    assert.equal(info.recent[0].chars, 2);
+    assert.ok(info.recent[0].ms >= 0);
+    assert.ok(info.since > 0);
+    assert.ok(!JSON.stringify(info).includes('一句只说给她听的话'), '统计里不能有聊天内容');
+    assert.ok(!JSON.stringify(info).includes(token), '统计里不能有令牌');
+  } finally {
+    await gw.stop();
+  }
+});

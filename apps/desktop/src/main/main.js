@@ -310,15 +310,26 @@ if (!app.requestSingleInstanceLock()) {
     gateway = createGateway({ daughter, log: dshLog });
     await gateway.start();
     dsh = createDshRuntime({ userData: app.getPath('userData'), gateway, log: dshLog });
-    dsh.on('status', (st) => send('dsh', st));
+    const kernelEvents = []; // 内核状态变过几次 {at, state, error}
+    let lastKernelState = 'stopped';
+    const kernelStatus = () => ({ ...dsh.status(), gateway: gateway.info(), events: kernelEvents.slice(-30) });
+    dsh.on('status', (st) => {
+      if (st.state !== lastKernelState) {
+        lastKernelState = st.state;
+        kernelEvents.push({ at: Date.now(), state: st.state, error: st.state === 'crashed' ? st.lastError || '' : '' });
+        if (kernelEvents.length > 60) kernelEvents.shift();
+      }
+      send('dsh', kernelStatus());
+    });
     const result = async (fn) => {
       try {
-        return { ok: true, status: await fn() };
+        await fn();
+        return { ok: true, status: kernelStatus() };
       } catch (err) {
-        return { ok: false, error: err.message, status: dsh.status() };
+        return { ok: false, error: err.message, status: kernelStatus() };
       }
     };
-    ipcMain.handle('dsh-status', () => dsh.status());
+    ipcMain.handle('dsh-status', () => kernelStatus());
     ipcMain.handle('dsh-start', () => result(() => dsh.start()));
     ipcMain.handle('dsh-stop', () => result(() => dsh.stop()));
     ipcMain.handle('dsh-restart', () => result(() => dsh.restart()));
@@ -326,9 +337,9 @@ if (!app.requestSingleInstanceLock()) {
       const t = String(text || '').trim().slice(0, 2000);
       if (!t) return { ok: false, error: '先写一句话' };
       try {
-        return { ok: true, reply: await dsh.say(t), status: dsh.status() };
+        return { ok: true, reply: await dsh.say(t), status: kernelStatus() };
       } catch (err) {
-        return { ok: false, error: err.message, status: dsh.status() };
+        return { ok: false, error: err.message, status: kernelStatus() };
       }
     });
     // 这一期没有通道，内核默认不随程序启动（设置里 dsh.autoStart 可以打开）
