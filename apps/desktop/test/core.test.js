@@ -486,7 +486,7 @@ test('采样：各系统页的曲线要用的指标都记下来了，而且都�
     const d = new Daughter({ store: new JsonStore(dir), getSettings: () => ({}) });
     d.sample();
     const p = d.vitals[d.vitals.length - 1];
-    for (const k of ['satiety', 'energy', 'hr', 'rr', 'glucose', 'stomach', 'intestine', 'hydration', 'temp', 'bladder', 'insulin', 'glucagon', 'melatonin', 'immunity', 'symp', 'para']) {
+    for (const k of ['satiety', 'energy', 'hr', 'rr', 'glucose', 'stomach', 'intestine', 'hydration', 'temp', 'bladder', 'insulin', 'glucagon', 'melatonin', 'dopamine', 'serotonin', 'ne', 'arousal', 'immunity', 'symp', 'para']) {
       assert.ok(Number.isFinite(p[k]), `${k} = ${p[k]}`);
     }
     assert.ok(p.glucose > 2 && p.glucose < 10, '血糖的单位是 mmol/L');

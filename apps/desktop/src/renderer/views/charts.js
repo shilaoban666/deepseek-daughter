@@ -117,6 +117,7 @@ export function radar(items, { size = 250, color = C.cyan } = {}) {
   return `<svg class="radar" viewBox="0 0 300 244" style="max-width:${size * 1.3}px" role="img" aria-label="${esc(items.map((x) => `${x.name} ${Math.round(x.value)}`).join('，'))}">
     ${[0.25, 0.5, 0.75, 1].map((k) => `<polygon points="${poly(R * k)}" class="rd-ring"/>`).join('')}
     ${items.map((_, i) => { const [x, y] = pt(i, R); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="rd-ring"/>`; }).join('')}
+    ${items.some((x) => Number.isFinite(x.base)) ? `<polygon points="${items.map((x, i) => pt(i, R * clamp01((x.base ?? x.value) / 100)).map((v) => v.toFixed(1)).join(',')).join(' ')}" class="rd-base"/>` : ''}
     <polygon points="${shape}" class="rd-shape" style="fill:${color};stroke:${color}"/>
     ${items.map((x, i) => { const [a, b] = pt(i, R * clamp01(x.value / 100)); const [lx, ly] = pt(i, R + 17); const anchor = Math.abs(lx - cx) < 8 ? 'middle' : lx > cx ? 'start' : 'end';
       return `<circle cx="${a.toFixed(1)}" cy="${b.toFixed(1)}" r="3" fill="${x.warn ? C.amber : color}"/><text x="${lx.toFixed(1)}" y="${(ly + 2).toFixed(1)}" text-anchor="${anchor}" class="rd-label${x.warn ? ' w' : ''}">${esc(x.name)}<tspan class="rd-v" dx="4">${Math.round(x.value)}</tspan></text>`; }).join('')}
@@ -190,6 +191,7 @@ function tick() {
 
 /** 页面换了内容以后调用：让监护仪动起来，给曲线接上悬停读数 */
 export function mountCharts(root) {
+  mountEeg(root);
   const mons = root.querySelectorAll('canvas[data-mon]');
   if (mons.length) {
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -334,4 +336,91 @@ export function synapse() {
     <path d="M40 85 H280" class="sy-ap"/><path d="M660 85 H960" class="sy-ap post"/>
     <text x="150" y="26" class="og-step">动作电位到达</text><text x="410" y="162" class="og-name">突触前膜 · 囊泡</text><text x="518" y="20" class="og-step">突触间隙</text><text x="760" y="162" class="og-name">突触后膜 · 受体</text><text x="820" y="26" class="og-step">产生新的电位</text>
   </svg>`;
+}
+
+// ---------- 意识、记忆、神经用的图 ----------
+
+/** 竖条图：每条一个值，比如每天记住了几件事 */
+export function bars(items, { height = 120, color = C.cyan, unit = '' } = {}) {
+  const max = Math.max(1, ...items.map((x) => x.value));
+  return `<div class="bars" style="--h:${height}px" role="img" aria-label="${esc(items.map((x) => `${x.label} ${x.value}${unit}`).join('，'))}">${items.map((x) => `<div class="bar-c" title="${esc(x.title || `${x.label}：${x.value}${unit}`)}"><b>${x.value || ''}</b><i style="height:${(x.value / max) * 100}%;background:linear-gradient(180deg, ${x.color || color}, color-mix(in srgb, ${x.color || color} 25%, transparent))"></i><span>${esc(x.label)}</span></div>`).join('')}</div>`;
+}
+
+/** 带阈值线的横条：过了线就会去做 */
+export function thresholdBars(items, threshold, note) {
+  return `<div class="thb" style="--thr:${threshold}%">${items.map((x) => `<div class="thb-row${x.value >= threshold ? ' over' : ''}"><span>${esc(x.name)}</span><div class="thb-track"><i style="width:${clamp01(x.value / 100) * 100}%"></i></div><b>${Math.round(x.value)}</b></div>`).join('')}<div class="thb-note"><span style="left:${threshold}%">${esc(note)}</span></div></div>`;
+}
+
+/** 情绪平面：横轴是愉悦，纵轴是唤醒，点是她现在的位置，拖尾是最近走过的路 */
+export function affectPlane({ P, A, label, trail = [] }) {
+  const X = (p) => 110 + Math.max(-1, Math.min(1, p)) * 92, Y = (a) => 110 - Math.max(-1, Math.min(1, a)) * 92;
+  const path = trail.length > 1 ? `<path d="M${trail.map((t) => `${X(t.P).toFixed(1)} ${Y(t.A).toFixed(1)}`).join(' L')}" class="af-trail"/>` : '';
+  return `<svg class="affect" viewBox="0 0 220 220" role="img" aria-label="情绪：${esc(label)}，愉悦 ${P.toFixed(2)}，唤醒 ${A.toFixed(2)}">
+    <rect x="18" y="18" width="184" height="184" rx="10" class="af-box"/>
+    <circle cx="110" cy="110" r="46" class="af-ring"/><circle cx="110" cy="110" r="92" class="af-ring"/>
+    <line x1="18" y1="110" x2="202" y2="110" class="af-axis"/><line x1="110" y1="18" x2="110" y2="202" class="af-axis"/>
+    <text x="160" y="40" class="af-q">兴奋</text><text x="60" y="40" class="af-q">焦虑</text><text x="160" y="190" class="af-q">平静</text><text x="60" y="190" class="af-q">委屈</text>
+    <text x="202" y="214" class="af-ax" text-anchor="end">愉悦 →</text><text x="18" y="12" class="af-ax">↑ 唤醒</text>
+    ${path}<circle cx="${X(P).toFixed(1)}" cy="${Y(A).toFixed(1)}" r="13" class="af-halo"/><circle cx="${X(P).toFixed(1)}" cy="${Y(A).toFixed(1)}" r="5.5" class="af-dot"/>
+    <text x="${X(P).toFixed(1)}" y="${(Y(A) - 17).toFixed(1)}" class="af-label">${esc(label)}</text>
+  </svg>`;
+}
+
+/** 反射弧：感受器 → 传入神经 → 神经中枢 → 传出神经 → 效应器 */
+export function reflexArc(active) {
+  const nodes = [['感受器', '接受刺激', 60, 64], ['传入神经', '把信号送进去', 250, 37], ['神经中枢', '脊髓或脑', 500, 64], ['传出神经', '把指令送出来', 750, 91], ['效应器', '肌肉或腺体', 940, 64]];
+  const d = 'M60 64 C160 20 360 20 500 64 C640 108 840 108 940 64';
+  return `<svg class="organ" viewBox="0 0 1000 150" role="img" aria-label="反射弧：感受器、传入神经、神经中枢、传出神经、效应器">
+    <path d="${d}" class="ra-path"/><path d="${d}" class="ra-pulse${active ? ' on' : ''}"/>
+    ${nodes.map(([n, s, x, y], i) => `<circle cx="${x}" cy="${y}" r="${i === 2 ? 22 : 13}" class="ra-node${i === 2 ? ' mid' : ''}"/><text x="${x}" y="${i === 1 ? 14 : 126}" class="og-name">${n}</text><text x="${x}" y="${i === 1 ? 74 : 144}" class="og-note">${s}</text>`).join('')}
+  </svg>`;
+}
+
+/** 脑电示意：睡着是慢而高的波，放松是 α 波，专注是快而低的 β 波 */
+export function eeg({ asleep, arousal, band, hz, state }) {
+  return `<div class="mon eeg"><div class="mon-wave"><canvas data-eeg data-asleep="${asleep ? 1 : 0}" data-arousal="${arousal.toFixed(2)}"></canvas><span class="mon-tag" style="top:8px;color:${C.violet}">额叶</span><span class="mon-tag" style="top:76px;color:${C.cyan}">顶叶</span><span class="mon-tag" style="top:144px;color:${C.green}">枕叶</span></div>
+    <div class="mon-nums"><div style="--c:${C.violet}"><span>主要节律</span><b>${esc(band)}</b><small>${esc(hz)}</small></div><div style="--c:${C.cyan}"><span>状态</span><b>${esc(state)}</b></div></div></div>`;
+}
+
+function drawEeg(c, t) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return;
+  if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  const x = c.getContext('2d');
+  x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  x.clearRect(0, 0, w, h);
+  x.strokeStyle = 'rgba(127,178,255,.07)'; x.lineWidth = 1;
+  for (let i = 0; i * 24 < w; i++) { x.beginPath(); x.moveTo(i * 24 + 0.5, 0); x.lineTo(i * 24 + 0.5, h); x.stroke(); }
+  const asleep = c.dataset.asleep === '1', ar = Number(c.dataset.arousal) || 0;
+  const beta = asleep ? 0.05 : clamp01(0.25 + ar * 0.6), alpha = asleep ? 0.15 : clamp01(0.75 - ar * 0.55), delta = asleep ? 1 : 0.08;
+  const wave = (s, k) => delta * Math.sin(s * 2 * Math.PI * 2 + k) + alpha * 0.5 * Math.sin(s * 10 * Math.PI * 2 + k * 2) * (0.6 + 0.4 * Math.sin(s * 0.9 + k)) + beta * 0.22 * (Math.sin(s * 21 * Math.PI * 2 + k) + Math.sin(s * 27.3 * Math.PI * 2 + k * 3));
+  const speed = 110, head = (t * speed) % w;
+  [[C.violet, 0.2, 0], [C.cyan, 0.52, 1.7], [C.green, 0.84, 3.1]].forEach(([color, yk, k]) => {
+    x.strokeStyle = color; x.lineWidth = 1.4; x.shadowColor = color; x.shadowBlur = 5;
+    x.beginPath();
+    let pen = false;
+    for (let px = 0; px <= w; px += 1) {
+      const age = (head - px + w) % w;
+      if (px > head && age > w - 14) { pen = false; continue; }
+      const y = h * yk - h * 0.12 * wave(t - age / speed, k);
+      if (!pen) { x.moveTo(px, y); pen = true; } else x.lineTo(px, y);
+      if (Math.abs(px - head) < 1) pen = false;
+    }
+    x.stroke(); x.shadowBlur = 0;
+  });
+}
+let eegLoop = 0;
+function eegTick() {
+  const list = document.querySelectorAll('canvas[data-eeg]');
+  if (!list.length) { eegLoop = 0; return; }
+  list.forEach((c) => drawEeg(c, performance.now() / 1000));
+  eegLoop = requestAnimationFrame(eegTick);
+}
+function mountEeg(root) {
+  const list = root.querySelectorAll('canvas[data-eeg]');
+  if (!list.length) return;
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  list.forEach((c) => drawEeg(c, still ? 3.2 : performance.now() / 1000));
+  if (!still && !eegLoop) eegLoop = requestAnimationFrame(eegTick);
 }
